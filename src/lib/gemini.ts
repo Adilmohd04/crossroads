@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, DynamicRetrievalMode } from '@google/generative-ai';
 import { IntakeData, AnalysisResult, ActionPlanResult } from './types';
 import { buildAnalysisPrompt, buildActionPlanPrompt } from './prompts';
 
@@ -32,6 +32,16 @@ export async function analyzeDecision(intake: IntakeData): Promise<AnalysisResul
         responseMimeType: 'application/json',
         temperature: 0.7,
       },
+      tools: [
+        {
+          googleSearchRetrieval: {
+            dynamicRetrievalConfig: {
+              mode: DynamicRetrievalMode.MODE_DYNAMIC,
+              dynamicThreshold: 0.3,
+            },
+          },
+        },
+      ],
     });
 
     const prompt = buildAnalysisPrompt(intake);
@@ -74,6 +84,16 @@ export async function generateActionPlan(
         responseMimeType: 'application/json',
         temperature: 0.7,
       },
+      tools: [
+        {
+          googleSearchRetrieval: {
+            dynamicRetrievalConfig: {
+              mode: DynamicRetrievalMode.MODE_DYNAMIC,
+              dynamicThreshold: 0.3,
+            },
+          },
+        },
+      ],
     });
 
     const prompt = buildActionPlanPrompt(intake, chosenPath, biggestRisk);

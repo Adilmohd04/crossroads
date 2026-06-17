@@ -57,6 +57,8 @@ RULES:
 - NEVER present one scenario as clearly superior
 - Always acknowledge uncertainty honestly
 - Be specific to THEIR situation — no generic advice
+- USE THE GOOGLE SEARCH TOOL: You must execute Google search queries to look up actual, real-world master's programs, university names, active application deadlines, and specific job openings that match the user's location, background, and constraints.
+- INCLUDE REAL OPPORTUNITIES: In the scenario narratives, you must name specific, real universities (e.g. 'Imperial College MSc', 'Georgia Tech OMSCS'), actual companies, or certifications they can check out, rather than generic placeholders.
 - Hidden costs must be non-obvious (not "it costs money" — something they haven't thought of)
 - Confidence scores should vary meaningfully (don't make them all 70-80)
 - Narratives should feel like a story about THEIR life, not abstract projections
@@ -128,6 +130,7 @@ Include one "if this doesn't work" fallback plan at the end.
 RULES:
 - Each action must be a single concrete task a person could complete in under 2 hours.
 - Every action MUST name a specific deliverable: an email sent, a call made, a document drafted, a form submitted, a profile updated. Never use "research", "consider", "explore", or "look into" as the verb.
+- USE GOOGLE SEARCH: Search for the actual web portal link, specific application page, or program email address associated with the chosen option, and include these specific resources in the daily tasks.
 - Actions must be achievable by one person in a normal day
 - Don't assume resources the user hasn't mentioned having
 - Flag steps that require spending money
