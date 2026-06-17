@@ -9,6 +9,7 @@ import ComparisonView from '../../components/ComparisonView';
 import UncertaintyPanel from '../../components/UncertaintyPanel';
 import DecisionMoment from '../../components/DecisionMoment';
 import LoadingState from '../../components/LoadingState';
+import OpportunityBoard from '../../components/OpportunityBoard';
 
 // Interactive additions
 import DimensionSliders from '../../components/DimensionSliders';
@@ -273,12 +274,17 @@ export default function ResultsPage() {
           <ComparisonView scenarios={analysis.scenarios} liveScores={liveScores} />
         </section>
 
-        {/* ── SECTION 5: UNCERTAINTY ── */}
+        {/* ── SECTION 5: RECOMMENDED OPPORTUNITIES ── */}
+        <section className="animate-fade-up" style={{ animationDelay: '0.33s' }}>
+          <OpportunityBoard />
+        </section>
+
+        {/* ── SECTION 6: UNCERTAINTY ── */}
         <section className="max-w-4xl mx-auto animate-fade-up" style={{ animationDelay: '0.35s' }}>
           <UncertaintyPanel disclosure={analysis.uncertainty_disclosure} />
         </section>
 
-        {/* ── SECTION 6: DECISION MOMENT ── */}
+        {/* ── SECTION 7: DECISION MOMENT ── */}
         <section className="pt-4 pb-12 animate-fade-up" style={{ animationDelay: '0.40s' }}>
           <DecisionMoment options={intake.options} />
         </section>
