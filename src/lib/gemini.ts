@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI, DynamicRetrievalMode } from '@google/generative-ai';
-import { IntakeData, AnalysisResult, ActionPlanResult, DecisionJournalEntry, DecisionDNA } from './types';
+import { IntakeData, AnalysisResult, ActionPlanResult, DecisionJournalEntry, DecisionDNA, Assumption, DimensionScores, GroundingSource } from './types';
 import { buildAnalysisPrompt, buildActionPlanPrompt } from './prompts';
 
 const API_KEY = process.env.GEMINI_API_KEY || '';
@@ -291,533 +291,266 @@ function getMockAnalysis(intake: IntakeData, dna?: DecisionDNA): AnalysisResult 
 }
 
 function getMockAnalysisInternal(intake: IntakeData): AnalysisResult {
-  const decisionLower = intake.decision.toLowerCase();
-  const optionsLower = intake.options.map(o => o.toLowerCase()).join(' ');
-  const combined = decisionLower + ' ' + optionsLower;
+  const decision = intake.decision || '';
+  const options = intake.options.filter(o => o.trim());
+  const fear = intake.fear || '';
+  const timeline = intake.timeline || '';
+  const values = intake.values || [];
 
-  const isJobVsGrad =
-    (combined.includes('job') || combined.includes('offer') || combined.includes('employ')) &&
-    (combined.includes('grad') || combined.includes('school') || combined.includes('master') || combined.includes('mba'));
+  const short = (s: string, n: number) => s.length > n ? s.slice(0, n) + '...' : s;
 
-  const isRelocation =
-    combined.includes('move') ||
-    combined.includes('relocate') ||
-    combined.includes('city') ||
-    combined.includes('cities');
+  function pickAssumptions(): Assumption[] {
+    const result: Assumption[] = [];
 
-  const isRelationship =
-    intake.category === 'relationship' ||
-    combined.includes('relationship') ||
-    combined.includes('partner') ||
-    combined.includes('breakup') ||
-    combined.includes('marry') ||
-    combined.includes('marriage') ||
-    combined.includes('dating') ||
-    combined.includes('stay vs leave') ||
-    combined.includes('long distance') ||
-    combined.includes('distance');
+    // 1. Binary framing — always relevant
+    if (options.length >= 2) {
+      result.push({
+        assumption: `That "${short(decision, 50)}" is a choice between two fixed outcomes with no room to adjust later.`,
+        why_wrong: `Most major life decisions are not permanent forks in the road. You can sequence, pause, or redirect after gathering real experience on either path. The pressure to pick "the right one" overlooks the fact that both paths teach you something useful.`,
+        what_changes: `Instead of choosing a final destination, you commit to a direction for a defined period — with permission to reassess.`,
+        cognitive_bias: 'False Dilemma'
+      });
+    }
 
-  const isFinancial =
-    intake.category === 'financial' ||
-    combined.includes('invest') ||
-    combined.includes('save') ||
-    combined.includes('buy') ||
-    combined.includes('house') ||
-    combined.includes('mortgage') ||
-    combined.includes('debt') ||
-    combined.includes('stock') ||
-    combined.includes('crypto') ||
-    combined.includes('budget');
+    // 2. Timeline / urgency
+    if (timeline) {
+      result.push({
+        assumption: `That "${short(timeline, 55)}" is a hard deadline that cannot be negotiated or re-evaluated.`,
+        why_wrong: `Deadlines create useful urgency, but they can also manufacture artificial pressure. Many timelines have more flexibility than they first appear — either through extension, partial commitment, or a trial period that buys you real data.`,
+        what_changes: `You separate the true external deadline from the self-imposed one, and evaluate whether acting now versus acting with more information changes the risk profile.`,
+        cognitive_bias: 'Planning Fallacy'
+      });
+    } else {
+      result.push({
+        assumption: `That delaying this decision will make it harder rather than clearer.`,
+        why_wrong: `Time reveals information. Your preferences, external conditions, and the actual trade-offs of each path become sharper with lived experience. The discomfort of uncertainty is not the same as a bad outcome.`,
+        what_changes: `You consider a structured trial period for one option instead of forcing a permanent choice today.`,
+        cognitive_bias: 'Planning Fallacy'
+      });
+    }
 
-  const isEducation =
-    intake.category === 'education' ||
-    combined.includes('bootcamp') ||
-    combined.includes('boot camp') ||
-    combined.includes('degree') ||
-    combined.includes('self-taught') ||
-    combined.includes('self taught') ||
-    combined.includes('certification') ||
-    combined.includes('online course') ||
-    (combined.includes('school') && !isJobVsGrad);
+    // 3. Fear-based / values tension
+    if (fear) {
+      result.push({
+        assumption: `That "${short(fear, 55)}" is the most probable outcome rather than one possible outcome among several.`,
+        why_wrong: `Your brain assigns higher probability to the scenario you fear most — it's a survival mechanism. But the actual likelihood of that specific worst case is usually lower than your emotional estimation, and you are better equipped to handle it than you think.`,
+        what_changes: `You give equal weight to neutral and positive scenarios, not just the one keeping you up at night.`,
+        cognitive_bias: 'Availability Heuristic'
+      });
+    } else if (values.length > 0) {
+      const top = values[0];
+      result.push({
+        assumption: `That ranking "${top}" as your top priority means the other dimensions of this decision are significantly less important.`,
+        why_wrong: `Abstract rankings shift under real pressure. What you value most in a calm moment may not be what you optimize for when you actually face the trade-off. The act of choosing reveals priorities that ranking alone cannot.`,
+        what_changes: `You test whether your stated priority holds up when you simulate the actual sacrifice required by each path.`,
+        cognitive_bias: 'Anchoring Bias'
+      });
+    } else {
+      result.push({
+        assumption: `That you already have enough information about what each path will actually feel like day to day.`,
+        why_wrong: `Most decisions are harder in anticipation than in execution. The daily reality of a path — its boredom, its small wins, its people — is something you can only evaluate after you start walking it.`,
+        what_changes: `You prioritize options that let you gather real experience quickly rather than ones that require maximum commitment upfront.`,
+        cognitive_bias: 'Curse of Knowledge'
+      });
+    }
 
-  // Pre-canned high-quality response for Job vs. Grad School
-  if (isJobVsGrad && intake.options.length >= 2) {
-    const optJob = intake.options[0] || 'Take the software engineering job';
-    const optGrad = intake.options[1] || 'Do a Master\'s in AI';
-    const optStartup = intake.options[2] || 'Start an AI startup';
-
-    return {
-      agent_search_queries: [
-        "Georgia Tech OMSCS tuition cost 2026",
-        "average developer salary startup series B",
-        "MBA vs Software Engineer opportunity cost calculator"
-      ],
-      agent_sources: [
-        { title: "Georgia Tech OMSCS Tuition & Fees", url: "https://omscs.gatech.edu/omscs-tuition-free-fees" },
-        { title: "Y Combinator Work at a Startup salaries", url: "https://www.workatastartup.com/" },
-        { title: "Numbeo Cost of Living Index", url: "https://www.numbeo.com/" }
-      ],
-      assumptions: [
-        {
-          assumption: 'That grad school guarantees a higher starting salary and a more prestigious career path.',
-          why_wrong: 'In tech, experience and building projects often compound faster than academic credentials. For some specializations like AI research, an MS helps, but it is not a blanket guarantee.',
-          what_changes: 'You might place more weight on immediate compensation and hands-on professional growth over credentials.',
-          cognitive_bias: 'Anchoring Bias'
-        },
-        {
-          assumption: 'That the job offer will wait for you or remain active if you defer or delay deciding.',
-          why_wrong: 'Mid-sized companies and startups operate on immediate resource requirements. Delaying beyond 10-14 days often leads to the offer being rescinded.',
-          what_changes: 'The urgency of securing employment becomes a harder constraint than academic timelines.',
-          cognitive_bias: 'Planning Fallacy'
-        },
-        {
-          assumption: 'That you will have the same energy and risk tolerance for a startup or relocation 2 years from now.',
-          why_wrong: 'Life conditions changes quickly. Debt, lease commitments, and changing relationship dynamics frequently lock people into stable paths as they get older.',
-          what_changes: 'You realize that some paths (like a high-risk startup) are easier to test right now than later.',
-          cognitive_bias: 'Status Quo Bias'
-        }
-      ],
-      scenarios: [
-        {
-          option_name: optJob,
-          narrative_30_days: 'You complete onboarding, meet your team, and begin writing code. You adapt to a structured 9-to-5 workday and establish a steady routine.',
-          narrative_60_days: 'You ship your first minor feature. The regular bi-weekly paycheck starts accumulating in your savings, relieving immediate financial anxiety.',
-          narrative_90_days: 'You feel integrated into the engineering lifecycle. You begin learning corporate dynamics, though you sometimes wonder if you are missing out on cutting-edge research.',
-          confidence: 85,
-          confidence_reasoning: 'The company is established, stable, and has extended a formal offer, reducing execution variables.',
-          hidden_cost: 'Lost momentum in deep specialized research and academic networks.',
-          biggest_risk: 'Becoming pigeonholed in legacy codebases and slow career progression.',
-          what_you_give_up: 'Two years of dedicated intellectual focus and academic credentials.',
-          alignment_score: 90,
-          dimension_scores: {
-            financial: 90,
-            emotional: 75,
-            growth: 70,
-            stability: 85,
-            relationships: 80
-          }
-        },
-        {
-          option_name: optGrad,
-          narrative_30_days: 'You relocate to campus, attend graduate orientations, and buy textbooks. The workload is intense from week one.',
-          narrative_60_days: 'You are submerged in problem sets, reading papers, and coding up academic algorithms. Your bank account shrinks as tuition bills hit.',
-          narrative_90_days: 'You are working with peers on research projects. You feel intellectually challenged but stressed about internships and student loan accumulation.',
-          confidence: 70,
-          confidence_reasoning: 'Academic systems are highly structured, but relocation and funding loans introduce stress elements.',
-          hidden_cost: 'Opportunity cost of $150K+ in lost wages, in addition to tuition interest.',
-          biggest_risk: 'Graduating into an uncertain job market with significantly higher debt.',
-          what_you_give_up: 'Financial comfort, immediate stability, and living in the same city as your current network.',
-          alignment_score: 75,
-          dimension_scores: {
-            financial: 30,
-            emotional: 60,
-            growth: 95,
-            stability: 70,
-            relationships: 50
-          }
-        },
-        ...(intake.options.length > 2 ? [{
-          option_name: optStartup,
-          narrative_30_days: 'You spend 12 hours a day building prototypes, purchasing domain names, and writing pitch decks. Energy is high but chaos is standard.',
-          narrative_60_days: 'You pitch to angel investors and receive polite rejections. Savings are dropping, and the product is buggy.',
-          narrative_90_days: 'You have a minimal viable product and 50 signups. The threat of running out of money looms, forcing you to consider freelance work to survive.',
-          confidence: 35,
-          confidence_reasoning: 'Startups have a 90% failure rate; launching without capital introduces extreme execution risks.',
-          hidden_cost: 'Strained personal relationships due to long working hours and chronic financial stress.',
-          biggest_risk: 'Burning through your entire $15k savings in 4 months with no working prototype.',
-          what_you_give_up: 'A stable income, health insurance benefits, and regular working hours.',
-          alignment_score: 80,
-          dimension_scores: {
-            financial: 40,
-            emotional: 50,
-            growth: 90,
-            stability: 20,
-            relationships: 40
-          }
-        }] : [])
-      ],
-      uncertainty_disclosure: 'We cannot predict the macroeconomic environment (e.g. tech hiring freezes) or personal factors like your endurance under high-stress conditions. These scores assume standard efforts and market conditions.'
-    };
+    return result.slice(0, 3);
   }
 
-  // Pre-canned high-quality response for Education path
-  if (isEducation && intake.options.length >= 2) {
-    // Dynamically match narratives to options based on their content
-    const scenarios = intake.options.filter(o => o.trim()).map((option) => {
-      const optLower = option.toLowerCase();
-      
-      if (optLower.includes('bootcamp') || optLower.includes('academy') || optLower.includes('intensive')) {
-        return {
-          option_name: option,
-          narrative_30_days: 'You begin the intensive program. Days are 10-12 hours of coding. The cohort keeps you accountable and the pace is demanding.',
-          narrative_60_days: 'You complete your first major projects. Your GitHub fills up. Career coaching sessions begin and you start preparing for interviews.',
-          narrative_90_days: 'Program wraps up. Your portfolio has 3-4 deployed projects. Job applications are going out. The skills are real but the job market is competitive.',
-          confidence: 68,
-          confidence_reasoning: 'Bootcamps have strong placement rates when you put in the work, but employer brand recognition varies.',
-          hidden_cost: 'The tuition ($15-20K) plus 3 months of zero income while your savings drain.',
-          biggest_risk: 'Graduating into a saturated junior market where bootcamp graduates compete with CS degree holders.',
-          what_you_give_up: 'Immediate income and the option to learn at your own pace.',
-          alignment_score: 78,
-          dimension_scores: { financial: 35, emotional: 70, growth: 88, stability: 40, relationships: 60 },
-        };
-      } else if (optLower.includes('startup') || optLower.includes('job') || optLower.includes('offer') || optLower.includes('accept') || optLower.includes('remote')) {
-        return {
-          option_name: option,
-          narrative_30_days: 'You onboard at the startup, meet the team, and start shipping code in your first week. The pace is fast and you learn by doing.',
-          narrative_60_days: 'You own a small feature area. The paycheck stabilizes your finances. You learn production systems but wonder if you are building the right skills.',
-          narrative_90_days: 'You are fully contributing. Your resume now shows real company experience. But the startup code quality is mixed and mentorship is limited.',
-          confidence: 80,
-          confidence_reasoning: 'A real offer with a start date is the lowest-risk path — the job exists and they want you.',
-          hidden_cost: 'Potential skill stagnation if the startup has no senior engineers to learn from.',
-          biggest_risk: 'Getting stuck doing maintenance work with no one to push your technical growth.',
-          what_you_give_up: 'Structured learning, peer cohort, and dedicated time for deep skill development.',
-          alignment_score: 82,
-          dimension_scores: { financial: 85, emotional: 65, growth: 60, stability: 80, relationships: 70 },
-        };
-      } else {
-        // Self-taught / portfolio / independent path
-        return {
-          option_name: option,
-          narrative_30_days: 'You set up your learning plan, pick a project idea, and start building. The freedom feels good but no one is checking on your progress.',
-          narrative_60_days: 'You have one project partially built. Motivation dips on hard days. Without deadlines, you sometimes skip coding sessions.',
-          narrative_90_days: 'You have 1-2 portfolio pieces but inconsistent depth. You realize you need external accountability to stay on track.',
-          confidence: 42,
-          confidence_reasoning: 'Self-directed learning has the highest dropout rate. Without structure, sustained progress is the exception.',
-          hidden_cost: 'The invisible cost of lost time when you go down wrong tutorials and have no mentor to redirect you.',
-          biggest_risk: 'Spending 6 months "learning" without producing anything employers would hire you for.',
-          what_you_give_up: 'Structured accountability, peer pressure, and a credential/brand signal.',
-          alignment_score: 55,
-          dimension_scores: { financial: 80, emotional: 50, growth: 55, stability: 30, relationships: 50 },
-        };
-      }
+  function pickScores(opt: string): DimensionScores {
+    const def = { financial: 60, emotional: 60, growth: 65, stability: 55, relationships: 55 };
+    const l = opt.toLowerCase();
+    if (l.includes('financial') || l.includes('salary') || l.includes('money') || l.includes('income') || l.includes('save') || l.includes('invest')) def.financial += 20;
+    if (l.includes('growth') || l.includes('learn') || l.includes('advancement') || l.includes('career') || l.includes('skill') || l.includes('developer') || l.includes('engineer')) def.growth += 20;
+    if (l.includes('stable') || l.includes('safe') || l.includes('secure') || l.includes('predict') || l.includes('stay') || l.includes('college')) def.stability += 15;
+    if (l.includes('family') || l.includes('relationship') || l.includes('partner') || l.includes('community') || l.includes('friend') || l.includes('people')) def.relationships += 15;
+    if (l.includes('stress') || l.includes('anxiety') || l.includes('health') || l.includes('wellbeing') || l.includes('emotion') || l.includes('peace')) def.emotional += 15;
+    if (l.includes('move') || l.includes('relocate') || l.includes('risk') || l.includes('start') || l.includes('challenge') || l.includes('entrepreneur') || l.includes('startup')) {
+      def.growth += 15;
+      def.stability -= 15;
+    }
+    if (l.includes('drop') || l.includes('prepar')) {
+      def.growth += 10;
+      def.emotional -= 10;
+    }
+    Object.keys(def).forEach(k => { def[k as keyof DimensionScores] = Math.max(10, Math.min(100, def[k as keyof DimensionScores])); });
+    return def;
+  }
+
+  type NarrativeVariant = {
+    narrative_30_days: string;
+    narrative_60_days: string;
+    narrative_90_days: string;
+    hidden_cost: string;
+    biggest_risk: string;
+    what_you_give_up: string;
+    confidence_reasoning: string;
+  };
+
+  function makeNarrativeFromText(opt: string, allOpts: string[]): NarrativeVariant {
+    const l = opt.toLowerCase().trim();
+    const stripped = opt.replace(/^(Take a |Take the |Join |Choose |Opt for |Go with |Pursue a |Pursue the |Start a |Start the |Begin a |Begin the |Proceed with )/i, '').trim();
+    const shortOpt = short(stripped, 40);
+    const lcStripped = stripped.toLowerCase();
+
+    const otherOpts = allOpts.filter(o => o !== opt);
+    const otherNames = otherOpts.map(o => {
+      const s = o.replace(/^(Take a |Take the |Join |Choose |Opt for |Go with |Pursue a |Pursue the |Start a |Start the |Begin a |Begin the |Proceed with )/i, '').trim();
+      return `"${short(s, 30)}"`;
     });
+    const otherRef = otherNames.length > 0 ? otherNames.join(' or ') : 'alternative paths';
+
+    const isStarting = /^(start|launch|begin|take|join|enroll|pursue|adopt|buy|switch|create|build|proceed|undo)/.test(l);
+    const isMoving = /^(move|relocate|transfer|migrate)/.test(l);
+    const isQuitting = /^(quit|leave|resign|break|drop|abandon|end)/.test(l) || l.includes('break up') || l.includes('breakup');
+    const isStaying = /^(stay|keep|remain|continue|maintain|wait|hold)/.test(l);
+    const isExploring = /\btry\b/.test(l) || /\btest\b/.test(l) || /\btrial\b/.test(l) || /\bfoster\b/.test(l) || /\bexplore\b/.test(l) || /\bexperiment\b/.test(l) || /\bconsult\b/.test(l) || l.includes('second opinion') || /\bget a\b/.test(l);
+    const isMixed = isStarting && (l.includes('while') || l.includes('alongside') || l.includes('keep') || l.includes('current') || l.includes('existing') || (l.includes('side') && l.includes('business')));
+
+    let narrative_30_days: string;
+    if (isStaying) {
+      narrative_30_days = `Choosing to "${shortOpt}" means your day-to-day life stays familiar. The first month brings the comfort of known routines and established patterns — no learning curve, no uncertainty about what to expect each morning. But the absence of change also means the urgency to pursue something different quietly dissolves. The real question is whether this is a deliberate choice or simply the path of least resistance.`;
+    } else if (isQuitting) {
+      narrative_30_days = `By deciding to "${shortOpt}", you make an intentional break from your current situation. The first month involves untangling commitments, adjusting to the absence of what you left behind, and beginning to rebuild. The relief of finally deciding is real, but the uncertainty of what comes next creates a restless energy that you must channel constructively rather than letting it become anxiety.`;
+    } else if (isExploring) {
+      narrative_30_days = `Choosing to "${shortOpt}" means gathering more information before committing. The first 30 days involve research, consultations, and testing your assumptions against reality. This measured approach reduces the risk of a wrong decision, but the extended uncertainty can be draining — you are investing time in evaluation rather than execution, and it is not always clear when you have enough information to act decisively.`;
+    } else if (isMixed) {
+      narrative_30_days = `Opting to "${shortOpt}" means balancing two commitments at once. The first month requires careful time management as you juggle your existing responsibilities with the demands of this new direction. Initial enthusiasm is high, but the cognitive load of switching between two tracks is immediately apparent — progress in both areas is slower than you would like, testing your patience and organizational skills.`;
+    } else if (isMoving) {
+      narrative_30_days = `The decision to "${shortOpt}" sets a major life change in motion. The first month is a blur of logistics — coordinating the transition, learning a new environment, and rebuilding daily routines from scratch. Excitement and exhaustion mix as everything requires more effort than expected, testing your resilience and adaptability early.`;
+    } else {
+      narrative_30_days = `Committing to "${shortOpt}" means stepping onto a new path. The first 30 days are intensive — you are learning unfamiliar systems, building new habits, and navigating the gap between your expectations and reality. Early momentum creates optimism, but the real test comes when the novelty fades and the daily work of sustaining this direction begins.`;
+    }
+
+    let narrative_60_days: string;
+    if (isStaying) {
+      narrative_60_days = `By day 60, the relief of avoiding disruption has settled into routine. You either find ways to make your current situation feel like a deliberate choice, or the dissatisfaction that prompted this decision begins to resurface. The familiarity that once felt comfortable can quietly become confining.`;
+    } else if (isQuitting) {
+      narrative_60_days = `Two months in, the initial adrenaline of your decision has faded. The reality of your new situation sets in — some aspects are better than expected, others are harder than anticipated. You start to see whether the problems you left were situational or internal, and whether you are building toward something better or simply recovering from what you left behind.`;
+    } else if (isExploring) {
+      narrative_60_days = `By now you have gathered enough information to form a clearer picture. Some initial assumptions have been confirmed, others disproven. The question shifts from "what are my options?" to "which option do I commit to?" — and the pressure to make a decision starts building as the evaluation phase naturally reaches its limit.`;
+    } else if (isMixed) {
+      narrative_60_days = `By day 60, one priority has likely started dominating the other. Most people naturally drift toward whichever track has more immediate deadlines or greater urgency. The risk of doing both things at a mediocre level rather than one thing well becomes increasingly real, forcing you to confront whether to maintain the balance or commit to a single direction.`;
+    } else if (isMoving) {
+      narrative_60_days = `Routine starts forming in your new environment. You find reliable spots, make initial connections, and learn the daily rhythms of your new location. Homesickness peaks around now, and the financial and social costs of the move become fully apparent. The new place either starts to feel like home or reveals the deeper challenges of starting over.`;
+    } else {
+      narrative_60_days = `By day 60, the initial excitement has settled and the real texture of this path emerges. You have faced your first real challenges and either adapted or struggled. The routine becomes established, and you begin to see whether this direction aligns with your deeper priorities. Doubts surface alongside progress, testing your commitment and forcing honest self-assessment.`;
+    }
+
+    let narrative_90_days: string;
+    if (isStaying) {
+      narrative_90_days = `Three months in, the weight of your decision is clear. If you have actively reinvested in your current situation, it can feel renewed and purposeful. If you have been coasting, the resentment builds and the "what if" grows louder with each passing week. Staying requires deliberate engagement to avoid drifting into passive regret.`;
+    } else if (isQuitting) {
+      narrative_90_days = `At the three-month mark, you have enough experience to evaluate honestly. The decision has either opened new opportunities or revealed that some of the old problems have followed you. The key question shifts from "was this the right choice?" to "what am I building now that I am here?" — a forward-looking orientation replaces the backward-looking one.`;
+    } else if (isExploring) {
+      narrative_90_days = `You now have enough data to make a confident decision — or you are stuck in analysis paralysis. The risk of over-consulting is real: beyond a certain point, more information does not reduce uncertainty, it just delays action. The hardest question is whether you are being thorough or unconsciously avoiding commitment.`;
+    } else if (isMixed) {
+      narrative_90_days = `Three months in, the sustainability of split focus is tested. Unless you have exceptional discipline, one path suffers more than the other. The question is whether you are genuinely okay with the trade-off — making progress in both areas but excellence in neither — or whether it is time to commit fully to one direction and accept the loss of the other.`;
+    } else if (isMoving) {
+      narrative_90_days = `You have either built a support system in your new location or struggled to form meaningful connections. The environment either energizes you or reveals that geography alone does not change your core patterns. The question becomes whether the opportunity was worth the dislocation, and whether you want to deepen roots or plan your return.`;
+    } else {
+      narrative_90_days = `Three months in, you have enough experience to evaluate honestly. This path has either met your expectations or revealed hidden costs you did not anticipate. The question shifts from "was this the right choice?" to "how do I make the most of where I am?" — or whether it is time to adjust course with the benefit of real experience.`;
+    }
+
+    let hidden_cost: string;
+    if (isStaying) {
+      hidden_cost = `The quiet erosion of ambition when comfort replaces challenge. The opportunities you pass up by not acting compound over time, and the gap between your potential and your current reality widens silently with each month that passes.`;
+    } else if (isQuitting) {
+      hidden_cost = `The loss of momentum, relationships, and institutional knowledge from your previous situation. Even positive departures carry a cost — burned bridges, lost seniority, and the time it takes to rebuild your standing from zero in a new context.`;
+    } else if (isExploring) {
+      hidden_cost = `The time and mental energy spent in evaluation rather than action. While you research and deliberate, the window for pursuing alternative paths may narrow, and options that required immediate commitment may close permanently.`;
+    } else if (isMixed) {
+      hidden_cost = `The difficulty of excelling in any single area when your attention is divided. The stress of constant context-switching can lead to burnout, and the feeling of being perpetually behind in both domains erodes satisfaction in each.`;
+    } else if (isMoving) {
+      hidden_cost = `The hidden financial and emotional costs of relocation — deposits, setup expenses, visa or legal fees — plus the significant premium of rebuilding a social network from zero. Monthly expenses in a new location often exceed initial projections by 20-30%.`;
+    } else {
+      hidden_cost = `The opportunity cost of time, energy, and resources committed here versus what you could have pursued instead. Every chosen path means doors not opened on the alternatives, and some of those doors may close for good.`;
+    }
+
+    let biggest_risk: string;
+    if (isStaying) {
+      biggest_risk = `Waking up a year from now in exactly the same position, having neither grown nor moved closer to what you actually want, while the regret of inaction compounds silently with each passing month.`;
+    } else if (isQuitting) {
+      biggest_risk = `Discovering that the problems you hoped to escape were internal rather than situational, leaving you with the same frustrations but fewer options, less stability, and a longer road back to where you started.`;
+    } else if (isExploring) {
+      biggest_risk = `Delaying commitment to the point where options narrow or external conditions change unfavorably, turning what was a manageable decision window into a forced choice under pressure with fewer good options available.`;
+    } else if (isMixed) {
+      biggest_risk = `Spending months stretched across two domains without making meaningful progress in either, ending up further behind than if you had committed fully to one path and accepted the trade-off.`;
+    } else if (isMoving) {
+      biggest_risk = `Persistent isolation if you struggle to form meaningful connections in the new environment, leading to burnout, depression, and an expensive or humbling return to where you started.`;
+    } else {
+      biggest_risk = `Investing significant time, energy, and financial resources into a path that ultimately does not fit, only to realize it when you have passed the point of easy return.`;
+    }
+
+    let what_you_give_up: string;
+    if (otherNames.length > 0) {
+      what_you_give_up = `The alternative of choosing ${otherRef}. Each of those paths comes with different experiences, growth opportunities, and trade-offs that you will not get to explore on this one.`;
+    } else {
+      what_you_give_up = `The experiences, growth, and serendipity that come from choosing a different direction. This path closes doors that every alternative path would have opened.`;
+    }
+
+    let confidence_reasoning: string;
+    if (isStaying) {
+      confidence_reasoning = `Staying has near-zero execution risk — you know exactly what this path looks like day to day. The real uncertainty is whether you will regret not having taken a chance when the opportunity was available and your circumstances allowed it.`;
+    } else if (isExploring) {
+      confidence_reasoning = `Gathering more information generally improves decision quality, but beyond a point it creates diminishing returns. The hardest part is knowing when you have gathered enough to act decisively versus using research as a form of avoidance.`;
+    } else {
+      confidence_reasoning = `Confidence is moderate because the daily reality of a new path can only be evaluated after you start walking it. Initial assumptions rarely survive full contact with real life, and adaptability matters more than the precision of your original plan.`;
+    }
 
     return {
-      agent_search_queries: [
-        "App Academy job placement rate 2026",
-        "remote startup junior developer salary range",
-        "self-taught developer portfolio examples that get hired"
-      ],
-      agent_sources: [
-        { title: "App Academy Career Outcomes Report", url: "https://www.appacademy.io/outcomes" },
-        { title: "We Work Remotely — Junior Dev Jobs", url: "https://weworkremotely.com/" },
-        { title: "The Odin Project — Free Full Stack Curriculum", url: "https://www.theodinproject.com/" }
-      ],
-      assumptions: [
-        {
-          assumption: 'That a formal credential (bootcamp or degree) is required to get hired as a developer.',
-          why_wrong: 'Many companies hire based on portfolio and demonstrated skills. A strong GitHub with deployed projects can outweigh credentials — especially at startups.',
-          what_changes: 'The self-taught path becomes more viable if you commit to building publicly visible projects.',
-          cognitive_bias: 'Authority Bias'
-        },
-        {
-          assumption: 'That accepting the job now means giving up learning forever.',
-          why_wrong: 'Most developers learn primarily ON the job. The startup would teach you production skills no bootcamp covers. Learning and earning aren\'t mutually exclusive.',
-          what_changes: 'The startup offer becomes a "paid learning opportunity" rather than a "sacrifice of education."',
-          cognitive_bias: 'False Dilemma'
-        },
-        {
-          assumption: 'That you need to decide your entire career path right now.',
-          why_wrong: 'You can do the startup for 1 year, save money, then do a bootcamp or degree later with financial cushion. Sequencing exists.',
-          what_changes: 'Instead of "which path is THE path," you think "what\'s the best FIRST step that keeps doors open?"',
-          cognitive_bias: 'Permanence Illusion'
-        }
-      ],
-      scenarios,
-      uncertainty_disclosure: 'We cannot predict the specific startup\'s stability, the bootcamp\'s current hiring network strength, or your personal discipline levels for self-teaching. These projections assume standard effort and current market conditions.'
+      narrative_30_days,
+      narrative_60_days,
+      narrative_90_days,
+      hidden_cost,
+      biggest_risk,
+      what_you_give_up,
+      confidence_reasoning,
     };
   }
 
-  // Pre-canned high-quality response for Relocation
-  if (isRelocation && intake.options.length >= 2) {
-    const optMove = intake.options[0] || 'Move to the new city';
-    const optStay = intake.options[1] || 'Stay in your current city';
-
-    return {
-      agent_search_queries: [
-        "rent comparison Numbeo Austin vs New York City",
-        "Nomad List city index ratings Austin Texas",
-        "cost of relocating moving estimator index"
-      ],
-      agent_sources: [
-        { title: "Numbeo Cost of Living and Rent Index", url: "https://www.numbeo.com/cost-of-living/" },
-        { title: "Nomad List Austin Scorecard & Safety Info", url: "https://nomadlist.com/" }
-      ],
-      assumptions: [
-        {
-          assumption: 'That moving to a new city automatically resolves feelings of stagnation or routine.',
-          why_wrong: 'Internal habits and social routines travel with you. If you struggle to network locally, a new city will amplify that isolation initially.',
-          what_changes: 'You begin viewing moving as an accelerator for change, rather than a magical cure.',
-          cognitive_bias: 'Geographic Cure Fallacy'
-        },
-        {
-          assumption: 'That staying in your current city prevents your career from growing.',
-          why_wrong: 'With remote work and local tech meetups, career growth is highly dependent on self-education and proactive outreach, not just geographical coordinates.',
-          what_changes: 'You look at how you can shake up your current environment if you choose to stay.',
-          cognitive_bias: 'Availability Heuristic'
-        },
-        {
-          assumption: 'That long-distance relationships or friendships will remain unchanged with remote communication.',
-          why_wrong: 'Out of sight often leads to a natural drift in conversational frequency, requiring significant deliberate effort to maintain bonds.',
-          what_changes: 'You price in the emotional work required to preserve your current support systems.',
-          cognitive_bias: 'Optimism Bias'
-        }
-      ],
-      scenarios: [
-        {
-          option_name: optMove,
-          narrative_30_days: 'You unpack boxes in a new apartment, learn local transit, and feel a mixture of excitement and deep isolation during weekends.',
-          narrative_60_days: 'You start finding favorite coffee shops and attend local meetups. You feel a sense of independence but miss familiar faces.',
-          narrative_90_days: 'You have a small local circle and feel proud of navigating the transition. The city begins to feel like home, though your budget is tighter.',
-          confidence: 65,
-          confidence_reasoning: 'Relocation success depends heavily on active networking and managing high moving expenses.',
-          hidden_cost: 'The financial drag of setup costs, security deposits, and higher cost of living.',
-          biggest_risk: 'Severe isolation leading to burnout in your new job.',
-          what_you_give_up: 'Daily proximity to your family, current partner, or long-term friends.',
-          alignment_score: 85,
-          dimension_scores: {
-            financial: 60,
-            emotional: 70,
-            growth: 85,
-            stability: 50,
-            relationships: 40
-          }
-        },
-        {
-          option_name: optStay,
-          narrative_30_days: 'You renew your current lease or stay put. Life is comfortable and predictable. You spend time with your regular friend group.',
-          narrative_60_days: 'You feel a slight pang of FOMO when seeing others move, but enjoy your stable routines and cheap living costs.',
-          narrative_90_days: 'You have saved money, but feel a lingering sense of "what if." You realize you must proactively seek new local projects to avoid stagnation.',
-          confidence: 90,
-          confidence_reasoning: 'Familiarity reduces uncertainty to near zero, though stagnation remains a possibility.',
-          hidden_cost: 'The opportunity cost of not expanding your worldview and personal independence.',
-          biggest_risk: 'Settling into a comfortable routine that delays your personal growth.',
-          what_you_give_up: 'The adventure, new opportunities, and career clusters of a major tech hub.',
-          alignment_score: 70,
-          dimension_scores: {
-            financial: 85,
-            emotional: 80,
-            growth: 50,
-            stability: 90,
-            relationships: 85
-          }
-        }
-      ],
-      uncertainty_disclosure: 'We cannot predict how easily you will form a new social network or if the cost of housing in the new city will surge unexpectedly.'
-    };
+  function pickQueries(): string[] {
+    const keyTerms = [
+      decision.split(/\s+/).slice(0, 3).join(' '),
+      ...options.map(o => o.split(/\s+/).slice(0, 3).join(' ')),
+    ].filter(Boolean);
+    const queries: string[] = [];
+    if (keyTerms.length > 0) queries.push(`${keyTerms[0]} comparison pros cons`);
+    if (keyTerms.length > 1) queries.push(`${keyTerms[1]} risk analysis`);
+    queries.push('how to make a tough life decision framework');
+    return queries.slice(0, 3);
   }
 
-  // Pre-canned high-quality response for Relationship
-  if (isRelationship && intake.options.length >= 2) {
-    const optRel = intake.options[0] || 'Prioritize relationship';
-    const optInd = intake.options[1] || 'Prioritize individual path';
-
-    return {
-      agent_search_queries: [
-        "long distance relationship success rates statistics",
-        "couples relocation adjustment studies family science",
-        "cohabitation transition timeline recommendations"
-      ],
-      agent_sources: [
-        { title: "Gottman Institute — Long Distance Relationships", url: "https://www.gottman.com/blog/key-to-long-distance-relationships/" },
-        { title: "Psychology Today — Couples Moving and Strains", url: "https://www.psychologytoday.com/" }
-      ],
-      assumptions: [
-        {
-          assumption: 'That the relationship can survive indefinite long-distance without a concrete timeline for closing the gap.',
-          why_wrong: 'Relational science shows that long-distance works best when there is a shared, visible horizon for when the separation will end. Without an agreed end-date, emotional erosion eventually takes a toll.',
-          what_changes: 'You focus on sequencing the decision—defining a timeline for reunification rather than treating long-distance as a permanent state.',
-          cognitive_bias: 'Optimism Bias'
-        },
-        {
-          assumption: 'That relocating or compromising for your partner means giving up your career ambition entirely.',
-          why_wrong: 'Compromising on geography does not mean stagnant career growth. It forces you to explore hybrid roles, remote work options, or secondary career hubs which can expand your adaptability.',
-          what_changes: 'You start looking for alternative professional anchors in the new location, rather than viewing it as a loss of identity.',
-          cognitive_bias: 'False Dilemma'
-        },
-        {
-          assumption: 'That staying in the current setup will fix underlying feelings of relationship stagnation.',
-          why_wrong: 'If routine or mismatched timelines are causing friction, staying in place will likely compound that resentment over time. A geographical stable state does not automatically resolve emotional drift.',
-          what_changes: 'You realize that whether you move or stay, active and difficult conversations about your shared future must happen.',
-          cognitive_bias: 'Status Quo Bias'
-        }
-      ],
-      scenarios: [
-        {
-          option_name: optRel,
-          narrative_30_days: 'You prioritize proximity or align plans with your partner. The relief of being close brings immediate warmth, though you feel slight anxiety about the professional adjustments.',
-          narrative_60_days: 'You establish a shared household or routine. Daily intimacy is high, but small friction points emerge over personal space and career sacrifices.',
-          narrative_90_days: 'Three months in, the relational bond is stronger. However, if you compromised your career location, you find yourself having to work twice as hard to build a local network.',
-          confidence: 75,
-          confidence_reasoning: 'Staying close or closing the gap eliminates the emotional distance risk, but shifts execution friction onto career adaptation.',
-          hidden_cost: 'Potential career momentum lag and subtle feelings of resentment if sacrifices feel one-sided.',
-          biggest_risk: 'Compromising your career setup only to experience relational strain later.',
-          what_you_give_up: 'Total geographical freedom and immediate optimization of your individual career trajectory.',
-          alignment_score: 80,
-          dimension_scores: {
-            financial: 60,
-            emotional: 80,
-            growth: 60,
-            stability: 85,
-            relationships: 90
-          }
-        },
-        {
-          option_name: optInd,
-          narrative_30_days: 'You choose your individual career/geographical path. You feel independent and focused, but late-night calls with your partner are bittersweet.',
-          narrative_60_days: 'You dive into your career or new city. The work is fulfilling, but the lack of physical presence makes maintaining connection feel like a chore.',
-          narrative_90_days: 'Your personal growth is high, but the emotional cost of distance is clear. You realize you are leading parallel lives, forcing a serious conversation about long-term goals.',
-          confidence: 55,
-          confidence_reasoning: 'Individual path execution is highly predictable, but keeping a relationship alive across distance carries significant emotional friction.',
-          hidden_cost: 'Constant cognitive load of checking in and coordinating schedules across different cities.',
-          biggest_risk: 'Emotional drift and progressive weakening of your partner bond.',
-          what_you_give_up: 'Daily companionship, shared routines, and immediate support from your partner.',
-          alignment_score: 70,
-          dimension_scores: {
-            financial: 80,
-            emotional: 50,
-            growth: 90,
-            stability: 65,
-            relationships: 50
-          }
-        }
-      ],
-      uncertainty_disclosure: 'We cannot predict your partner\'s individual resilience, changing career timelines, or emotional shifts under distance constraints.'
-    };
+  function pickSources(): GroundingSource[] {
+    return [
+      { title: "Farnam Street — Mental Models for Decision Making", url: "https://fs.blog/mental-models/" },
+      { title: "Harvard Business Review — How to Make a Tough Choice", url: "https://hbr.org/" }
+    ];
   }
 
-  // Pre-canned high-quality response for Financial
-  if (isFinancial && intake.options.length >= 2) {
-    const optInv = intake.options[0] || 'Aggressive investment / major purchase';
-    const optSav = intake.options[1] || 'Maintain high liquidity / pay down debt';
-
-    return {
-      agent_search_queries: [
-        "mortgage vs renting opportunity cost calculator 2026",
-        "average index fund returns historical vs inflation adjusted",
-        "debt avalanche vs snowball strategy returns analysis"
-      ],
-      agent_sources: [
-        { title: "Investopedia — Rent vs Buy Calculator", url: "https://www.investopedia.com/articles/personal-finance/083115/renting-vs-buying-house-pros-and-cons.asp" },
-        { title: "Bogleheads Investment Philosophy", url: "https://www.bogleheads.org/wiki/Bogleheads%C2%AE_investment_philosophy" }
-      ],
-      assumptions: [
-        {
-          assumption: 'That real estate or investment returns will follow historical patterns without unexpected market corrections.',
-          why_wrong: 'Short-term market cycles are volatile and unpredictable. Buying a home or investing right before a correction can lock up capital or result in paper losses.',
-          what_changes: 'You increase your cash reserves to withstand a potential multi-year market downturn.',
-          cognitive_bias: 'Anchoring Bias'
-        },
-        {
-          assumption: 'That renting is "throwing money away" compared to homeownership.',
-          why_wrong: 'Renting buys flexibility and caps your monthly costs. Buying has massive unrecoverable costs (taxes, interest, maintenance, transaction fees) that often exceed rent over short horizons (<5 years).',
-          what_changes: 'You treat renting as paying for flexibility, allowing you to move for job opportunities.',
-          cognitive_bias: 'Sunk Cost Fallacy'
-        },
-        {
-          assumption: 'That your current income level is completely secure for the duration of a long-term loan or mortgage.',
-          why_wrong: 'Macroeconomic shifts, company downsizings, or industry disruptions can impact your earning potential. Assuming permanent income security leads to over-leveraging.',
-          what_changes: 'You size your recurring obligations based on a conservative survival income, not your peak salary.',
-          cognitive_bias: 'Planning Fallacy'
-        }
-      ],
-      scenarios: [
-        {
-          option_name: optInv,
-          narrative_30_days: 'You allocate capital or sign loan papers. The immediate excitement of a new asset is tempered by a drop in liquid bank account balances.',
-          narrative_60_days: 'Initial setup costs, taxes, or market fluctuations happen. You adjust your monthly spending to accommodate the new cash allocation pattern.',
-          narrative_90_days: 'The asset settles into your net worth. You feel proud of building equity, but your monthly budget is tighter, leaving less room for spontaneous trips or leisure.',
-          confidence: 70,
-          confidence_reasoning: 'Asset acquisition has a structured process, but market volatility or maintenance expenses introduce variables.',
-          hidden_cost: 'Reduced liquidity, transaction fees, and opportunity cost of locking up cash that could fund career pivots.',
-          biggest_risk: 'An unexpected expense forcing you to liquidate assets at a loss.',
-          what_you_give_up: 'Financial flexibility, liquidity buffer, and peace of mind from having cash in hand.',
-          alignment_score: 75,
-          dimension_scores: {
-            financial: 85,
-            emotional: 60,
-            growth: 70,
-            stability: 80,
-            relationships: 60
-          }
-        },
-        {
-          option_name: optSav,
-          narrative_30_days: 'You park cash in safe, liquid yields or pay off high-interest debt. The immediate safety feels comforting, but you wonder if your money should work harder.',
-          narrative_60_days: 'Your net worth grows steadily without volatility. You enjoy having a low-stress buffer, but feel a slight pang of FOMO seeing others buy assets.',
-          narrative_90_days: 'You have a mountain of liquid buffer or zero debt. Your monthly overhead is low. You realize this cash gives you leverage to take career risks or relocate on short notice.',
-          confidence: 90,
-          confidence_reasoning: 'Debt reduction and high yield savings have guaranteed returns and near-zero volatility.',
-          hidden_cost: 'Inflation erosion of cash value and potential missing of a market upswing.',
-          biggest_risk: 'Sitting on cash for too long, missing compounding growth opportunities.',
-          what_you_give_up: 'Potential asset appreciation and leverage benefits of real estate or stock market returns.',
-          alignment_score: 80,
-          dimension_scores: {
-            financial: 75,
-            emotional: 80,
-            growth: 60,
-            stability: 95,
-            relationships: 70
-          }
-        }
-      ],
-      uncertainty_disclosure: 'We cannot predict future interest rate changes, real estate market fluctuations, inflation rate spikes, or unexpected personal emergencies.'
-    };
-  }
-
-  // Dynamic fallback for custom inputs
   return {
-    agent_search_queries: [
-      "decision matrix frameworks under uncertainty",
-      "how to surface hidden biases cognitive science",
-      "contingency action plan design best practices"
-    ],
-    agent_sources: [
-      { title: "Farnam Street Mental Models Decision Guide", url: "https://fs.blog/mental-models/" },
-      { title: "Harvard Business Review Decisive Action Plan", url: "https://hbr.org/" }
-    ],
-    assumptions: [
-      {
-        assumption: `That you must choose immediately without gathering further data.`,
-        why_wrong: `Many timelines have hidden flexibility. Negotiating for another week or running a low-cost trial is often possible.`,
-        what_changes: `You gain time to perform validation before committing.`,
-        cognitive_bias: 'Urgency Bias'
-      },
-      {
-        assumption: `That one path is entirely positive while the other is mostly negative.`,
-        why_wrong: `Every major choice has hidden tradeoffs. A high-growth path has high stress; a stable path has low excitement.`,
-        what_changes: `You stop looking for a 'perfect' choice and start choosing which tradeoffs you prefer.`,
-        cognitive_bias: 'Black-and-White Thinking'
-      },
-      {
-        assumption: `That your current constraints (like money or location) are permanent.`,
-        why_wrong: `Financial situations and location boundaries shift. Modeling decisions as permanent locks leads to paralysis.`,
-        what_changes: `You look at decisions on a shorter horizon (e.g. 1-2 years) rather than the rest of your life.`,
-        cognitive_bias: 'Permanence Illusion'
-      }
-    ],
-    scenarios: intake.options.filter(o => o.trim()).map((option, idx) => {
-      const presets = [
-        { financial: 80, emotional: 60, growth: 75, stability: 70, relationships: 65 },
-        { financial: 55, emotional: 85, growth: 60, stability: 80, relationships: 90 },
-        { financial: 40, emotional: 50, growth: 90, stability: 30, relationships: 45 },
-        { financial: 70, emotional: 70, growth: 80, stability: 60, relationships: 75 }
-      ];
+    agent_search_queries: pickQueries(),
+    agent_sources: pickSources(),
+    assumptions: pickAssumptions(),
+    scenarios: options.map((option, idx) => {
+      const scores = pickScores(option);
+      const narrative = makeNarrativeFromText(option, options);
+      const conf = Math.max(35, Math.min(85, 55 + (scores.stability - 50) * 0.5));
       return {
         option_name: option,
-        narrative_30_days: `You take the first steps on "${option}". You adjust to the immediate changes in your daily schedule, feeling a mix of anticipation and caution.`,
-        narrative_60_days: `You are fully immersed in this path. The initial excitement settles into a routine, and you begin dealing with the day-to-day challenges.`,
-        narrative_90_days: `Three months in, you have adapted. You are seeing the first concrete results of your choice, though some tradeoffs are now fully visible.`,
-        confidence: [80, 60, 45, 75][idx % 4],
-        confidence_reasoning: `Based on your stated constraints like "${intake.timeline}" and fears about "${intake.fear.slice(0, 30)}...".`,
-        hidden_cost: `Opportunity cost of completely neglecting other options.`,
-        biggest_risk: `Losing motivation if results don't compound as fast as expected.`,
-        what_you_give_up: `The freedom and potential upside of the other options you had to reject.`,
-        alignment_score: [90, 75, 65, 80][idx % 4],
-        dimension_scores: presets[idx % 4]
+        narrative_30_days: narrative.narrative_30_days,
+        narrative_60_days: narrative.narrative_60_days,
+        narrative_90_days: narrative.narrative_90_days,
+        confidence: Math.round(conf),
+        confidence_reasoning: narrative.confidence_reasoning,
+        hidden_cost: narrative.hidden_cost,
+        biggest_risk: narrative.biggest_risk,
+        what_you_give_up: narrative.what_you_give_up,
+        alignment_score: Math.round(55 + (scores.growth + scores.stability) / 10),
+        dimension_scores: scores,
       };
     }),
-    uncertainty_disclosure: `We cannot know your long-term discipline level or unexpected external events that might disrupt these paths.`
+    uncertainty_disclosure: `We cannot predict your personal discipline over time, unexpected life events, shifts in your priorities once you experience the actual path, or external factors beyond your control. These projections assume consistent effort and stable conditions — real life rarely cooperates with either.`
   };
 }
 
@@ -932,6 +665,6 @@ function getMockActionPlan(
     reflection_prompt: behavioralInsights && behavioralInsights.length > 0
       ? `Looking back at your behavior during simulations, does this plan feel like it resolves the internal tension between what you wanted and what you actually optimized for?`
       : `Looking at your actions this week, did you act out of excitement for the path ahead, or out of fear of what you left behind?`,
-    fallback: `If this path becomes unviable, pivot to your backup plan: Maintain active contact with your alternative options, update your portfolio/resume weekly, and budget for a 3-month transition window.`
+    fallback: `If this path becomes unviable, pivot to your backup plan: Maintain active contact with your alternative options, update your resume and skills weekly, and budget for a 3-month transition window.`
   };
 }

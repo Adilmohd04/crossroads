@@ -149,6 +149,25 @@ export function getMetrics(): BehaviorMetrics {
  * Generates behavioral insights based on observed interaction patterns.
  * This is the "agentic" part — the AI observes PROCESS, not just inputs.
  */
+function isAcademicDecision(intake: any): boolean {
+  const combined = [
+    intake.decision || '',
+    ...(intake.options || []),
+  ].join(' ').toLowerCase();
+  return combined.includes('college') ||
+    combined.includes('university') ||
+    combined.includes('jee') ||
+    combined.includes('exam') ||
+    combined.includes('drop year') ||
+    combined.includes('gap year') ||
+    combined.includes('admission') ||
+    combined.includes('entrance') ||
+    combined.includes('student') ||
+    combined.includes('academic') ||
+    combined.includes('semester') ||
+    combined.includes('curriculum');
+}
+
 export function generateBehaviorInsights(intake: any): BehaviorInsight[] {
   // Flush any pending slider changes before reading metrics/generating insights
   flushPendingSliderChanges();
@@ -158,6 +177,7 @@ export function generateBehaviorInsights(intake: any): BehaviorInsight[] {
 
   if (!intake) return insights;
 
+  const academic = isAcademicDecision(intake);
   const statedTopValue = intake.values?.[0] || '';
   const savings = intake.savings || 0;
   const fear = intake.fear || '';
@@ -196,9 +216,13 @@ export function generateBehaviorInsights(intake: any): BehaviorInsight[] {
       let interpretation = '';
       if (statedTopValue === 'Career advancement' || statedTopValue === 'Personal Growth' || statedTopValue === 'Intellectual growth') {
         if (actualDim === 'relationships') {
-          interpretation = `The real decision may not be relocation vs. staying. The real decision is growth vs. belonging. You state that professional advancement is your priority, yet your interactive patterns reveal a persistent anxiety about protecting relationships and community.`;
+          interpretation = academic
+            ? `The real decision may not be drop year vs. college. The real decision is ambition vs. belonging. You state that academic or career growth is your priority, yet your interactive patterns reveal a persistent anxiety about staying connected to your current environment and community.`
+            : `The real decision may not be relocation vs. staying. The real decision is growth vs. belonging. You state that professional advancement is your priority, yet your interactive patterns reveal a persistent anxiety about protecting relationships and community.`;
         } else if (actualDim === 'financial') {
-          interpretation = `The real decision may not be startup vs. job. The real decision is growth vs. security. You say growth matters most, yet your interaction focus is dominated by minimizing financial downside, highlighting where your true risk aversion lives.`;
+          interpretation = academic
+            ? `The real decision may not be study path vs. college. The real decision is growth vs. security. You say growth matters most, yet your interaction focus is dominated by minimizing downside, highlighting where your true risk aversion lives.`
+            : `The real decision may not be startup vs. job. The real decision is growth vs. security. You say growth matters most, yet your interaction focus is dominated by minimizing financial downside, highlighting where your true risk aversion lives.`;
         } else {
           interpretation = `Although you ranked your primary ambition as "${statedTopValue}", your interactive adjustments focused heavily on protecting "${dimLabel}". This indicates a subconscious friction between your stated growth target and your immediate safety needs.`;
         }
@@ -233,9 +257,13 @@ export function generateBehaviorInsights(intake: any): BehaviorInsight[] {
 
     let interpretation = '';
     if (savings > 0 && savings < 10000) {
-      interpretation = `With only $${savings.toLocaleString()} in savings, social or professional adjustments become more dangerous because you have less financial runway to absorb a difficult transition. Relocation or startup paths will trigger heightened anxiety because you lack a safety net.`;
+      interpretation = academic
+        ? `With only $${savings.toLocaleString()} in savings, committing to a path becomes riskier because you have less financial runway to handle unexpected costs. Even though your parents may cover expenses, your interaction patterns show this is still a concern for you.`
+        : `With only $${savings.toLocaleString()} in savings, social or professional adjustments become more dangerous because you have less financial runway to absorb a difficult transition. Relocation or startup paths will trigger heightened anxiety because you lack a safety net.`;
     } else {
-      interpretation = `Your interaction patterns show that financial considerations are your primary filter. Although a path might promise growth, the baseline financial drag of relocating or taking a pay cut is something you are heavily risk-mitigating.`;
+      interpretation = academic
+        ? `Your interaction patterns show that financial considerations are filtering into your decision more than you may realize. Although a path might promise growth or prestige, the baseline cost of committing to preparation or college is something you are heavily risk-mitigating — even if someone else is paying.`
+        : `Your interaction patterns show that financial considerations are your primary filter. Although a path might promise growth, the baseline financial drag of relocating or taking a pay cut is something you are heavily risk-mitigating.`;
     }
 
     insights.push({
