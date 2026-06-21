@@ -20,7 +20,8 @@ export default function ClarityMeter({ value }: ClarityMeterProps) {
             fill="transparent"
             strokeLinecap="round"
             strokeDasharray={circumference}
-            animate={{ strokeDashoffset: circumference * (1 - value / 100) }}
+            initial={{ strokeDashoffset: circumference }}
+            animate={{ strokeDashoffset: circumference - (circumference * value) / 100 }}
             transition={{ type: 'spring', stiffness: 40, damping: 12 }}
           />
         </svg>

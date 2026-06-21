@@ -156,12 +156,12 @@ export default function InteractiveTrailMap({
           {/* Active Hiker indicator */}
           {activeIdx < numOptions && (
             <motion.g
-              initial={{ x: 200, y: 240 }}
+              initial={false}
               animate={{
-                x: peakCoords[activeIdx].x,
-                y: peakCoords[activeIdx].y + 5,
+                transform: `translate(${peakCoords[activeIdx].x}px, ${peakCoords[activeIdx].y + 5}px)`,
               }}
               transition={{ type: 'spring', stiffness: 50, damping: 10 }}
+              style={{ transformOrigin: '0px 0px' }}
             >
               <circle cx="0" cy="0" r="10" fill="rgba(255,255,255,0.95)" className="shadow-md border border-slate-200" />
               <g transform="translate(-5, -5)">

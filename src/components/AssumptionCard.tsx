@@ -26,7 +26,6 @@ export default function AssumptionCard({ assumption, index, isConfronted, onConf
         backdropFilter: 'none',
       }}
       whileHover={{
-        borderColor: isConfronted ? 'rgba(16, 185, 129, 0.35)' : 'rgba(245, 158, 11, 0.35)',
         boxShadow: isConfronted ? '0 8px 30px rgba(16, 185, 129, 0.08)' : '0 8px 30px rgba(192, 112, 68, 0.06)',
       }}
     >

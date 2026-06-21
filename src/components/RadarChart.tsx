@@ -273,6 +273,7 @@ export default function RadarChart({ scenarios, weights, baselineScenarios }: Ra
                   return (
                     <motion.circle
                       key={dim.key}
+                      initial={false}
                       animate={{ cx: x, cy: y }}
                       transition={{ type: 'spring', stiffness: 120, damping: 14 }}
                       r="4.5"
