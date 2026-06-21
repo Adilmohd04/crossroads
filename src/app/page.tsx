@@ -78,20 +78,7 @@ export default function Home() {
           </div>
         </NatureHero>
 
-        {/* ── DEMO MODE BANNER ── */}
-        <section style={{ padding: '20px 20px 0', background: '#f4f3ef' }}>
-          <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-            <div style={{ background: '#f0fdf4', border: '1.5px solid #d1e7dd', borderRadius: '16px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '22px' }}>🌱</span>
-              <p style={{ fontSize: '13px', color: '#1b4332', fontWeight: 600, flex: 1, minWidth: '200px' }}>
-                No API key needed. The app works fully with our local scenario engine — just scroll down and begin.
-              </p>
-              <span style={{ fontSize: '10px', color: '#2d6a4f', background: '#d8f5e3', borderRadius: '20px', padding: '4px 12px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                Try it now →
-              </span>
-            </div>
-          </div>
-        </section>
+
 
         {/* ── 3 PILLARS — connected to project core ── */}
         <section style={{ padding: '80px 20px 60px', background: '#f4f3ef' }}>
