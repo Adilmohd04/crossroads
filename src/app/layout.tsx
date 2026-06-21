@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import Script from 'next/script';
 import { AppProvider } from '../context/AppContext';
 import './globals.css';
 
@@ -35,7 +36,7 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-full flex flex-col antialiased`}
@@ -43,6 +44,12 @@ export default function RootLayout({
         <AppProvider>
           {children}
         </AppProvider>
+        {/* Novus.ai Product Tracking Integration — World Product Day Hard Blocker */}
+        <Script
+          id="novus-tracker"
+          src="https://cdn.novus.ai/tracking.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );

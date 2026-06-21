@@ -7,6 +7,7 @@ import { DimensionWeights } from '../lib/scoring';
 interface DimensionSlidersProps {
   weights: DimensionWeights;
   onChange: (weights: DimensionWeights) => void;
+  onInteraction?: () => void;
 }
 
 interface DimensionConfig {
@@ -19,7 +20,7 @@ interface DimensionConfig {
   gradient: string;
 }
 
-export default function DimensionSliders({ weights, onChange }: DimensionSlidersProps) {
+export default function DimensionSliders({ weights, onChange, onInteraction }: DimensionSlidersProps) {
   const dimensions: DimensionConfig[] = [
     {
       key: 'financial',
@@ -44,16 +45,16 @@ export default function DimensionSliders({ weights, onChange }: DimensionSliders
       label: 'Personal Growth',
       description: 'Learning, skill compounding & progression',
       icon: TrendingUp,
-      color: '#3b6fff',
+      color: '#245a42',
       glow: 'rgba(59, 111, 255, 0.3)',
-      gradient: 'linear-gradient(90deg, #3b6fff, #6366f1)',
+      gradient: 'linear-gradient(90deg, #2d6a4f, #2d6a4f)',
     },
     {
       key: 'stability',
       label: 'Predictability & Safety',
       description: 'Job security, low risk & routine stability',
       icon: Shield,
-      color: '#f59e0b',
+      color: '#1b4332',
       glow: 'rgba(245, 158, 11, 0.3)',
       gradient: 'linear-gradient(90deg, #f59e0b, #ef4444)',
     },
@@ -62,30 +63,31 @@ export default function DimensionSliders({ weights, onChange }: DimensionSliders
       label: 'Social & Relationships',
       description: 'Proximity to family, partner & social network',
       icon: Users,
-      color: '#8b5cf6',
+      color: '#8b7355',
       glow: 'rgba(139, 92, 246, 0.3)',
-      gradient: 'linear-gradient(90deg, #8b5cf6, #ec4899)',
+      gradient: 'linear-gradient(90deg, #8b7355, #ec4899)',
     },
   ];
 
   const handleSliderChange = (key: keyof DimensionWeights, value: number) => {
     onChange({ ...weights, [key]: value });
+    if (onInteraction) onInteraction();
   };
 
   return (
     <div className="rounded-2xl p-5 space-y-6 md:p-6 h-full"
       style={{
-        background: 'rgba(13, 17, 32, 0.75)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(99, 116, 163, 0.2)',
+        background: '#f4f3ef',
+        backdropFilter: 'none',
+        border: '1px solid rgba(180, 172, 160, 0.8)',
       }}>
       {/* Header */}
-      <div style={{ borderBottom: '1px solid rgba(99, 116, 163, 0.15)', paddingBottom: '12px' }}>
+      <div style={{ borderBottom: '1px solid rgba(180, 172, 160, 0.6)', paddingBottom: '12px' }}>
         <div className="flex items-center gap-2 mb-1">
-          <div className="w-1.5 h-4 rounded-full" style={{ background: 'linear-gradient(180deg, #3b6fff, #8b5cf6)' }} />
-          <h4 className="text-sm font-bold" style={{ color: '#f0f4ff' }}>Adjust Value Weights</h4>
+          <div className="w-1.5 h-4 rounded-full" style={{ background: 'linear-gradient(180deg, #2d6a4f, #8b7355)' }} />
+          <h4 className="text-sm font-bold" style={{ color: '#141413' }}>Adjust Value Weights</h4>
         </div>
-        <p className="text-[11px] font-medium leading-relaxed" style={{ color: '#5c6b8c' }}>
+        <p className="text-[11px] font-medium leading-relaxed" style={{ color: '#3d3b35' }}>
           Drag sliders to re-rank options by your real-world priorities. Scores update live.
         </p>
       </div>
@@ -107,8 +109,8 @@ export default function DimensionSliders({ weights, onChange }: DimensionSliders
                     <Icon className="h-4 w-4" style={{ color: dim.color }} />
                   </div>
                   <div>
-                    <span className="text-xs font-bold block" style={{ color: '#e2e8f0' }}>{dim.label}</span>
-                    <span className="text-[10px] font-medium block" style={{ color: '#5c6b8c' }}>{dim.description}</span>
+                    <span className="text-xs font-bold block" style={{ color: '#1b1b18' }}>{dim.label}</span>
+                    <span className="text-[10px] font-medium block" style={{ color: '#3d3b35' }}>{dim.description}</span>
                   </div>
                 </div>
                 <div className="px-2.5 py-1 rounded-lg text-xs font-bold mono-value"
@@ -125,7 +127,7 @@ export default function DimensionSliders({ weights, onChange }: DimensionSliders
 
               {/* Track + fill */}
               <div className="relative h-2 rounded-full cursor-pointer"
-                style={{ background: 'rgba(99, 116, 163, 0.15)' }}>
+                style={{ background: 'rgba(180, 172, 160, 0.6)' }}>
                 {/* Filled portion */}
                 <div className="absolute top-0 left-0 h-full rounded-full transition-all duration-200"
                   style={{

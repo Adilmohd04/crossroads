@@ -5,196 +5,167 @@ import { useApp } from '../context/AppContext';
 import Header from '../components/Header';
 import IntakeForm from '../components/IntakeForm';
 import LoadingState from '../components/LoadingState';
-import { EyeOff, Compass, ListTodo, AlertCircle, Zap, Brain, BarChart3 } from 'lucide-react';
-
-const FEATURES = [
-  {
-    icon: EyeOff,
-    title: 'Assumption Challenger',
-    desc: 'Surfaces 3 hidden blind spots in your thinking before any modeling begins.',
-    color: '#f59e0b',
-    glow: 'rgba(245, 158, 11, 0.2)',
-    bg: 'rgba(245, 158, 11, 0.08)',
-    border: 'rgba(245, 158, 11, 0.2)',
-  },
-  {
-    icon: BarChart3,
-    title: 'Live Simulation Cockpit',
-    desc: 'Morphing radar chart and weighted sliders recalculate scores in real-time.',
-    color: '#3b6fff',
-    glow: 'rgba(59, 111, 255, 0.2)',
-    bg: 'rgba(59, 111, 255, 0.08)',
-    border: 'rgba(59, 111, 255, 0.2)',
-  },
-  {
-    icon: Brain,
-    title: 'What-If Toggles',
-    desc: 'Remove constraints instantly to discover which limitation is actually the bottleneck.',
-    color: '#8b5cf6',
-    glow: 'rgba(139, 92, 246, 0.2)',
-    bg: 'rgba(139, 92, 246, 0.08)',
-    border: 'rgba(139, 92, 246, 0.2)',
-  },
-  {
-    icon: Compass,
-    title: 'Runway Simulator',
-    desc: 'Live financial burn-rate projection showing months of runway per path.',
-    color: '#10b981',
-    glow: 'rgba(16, 185, 129, 0.2)',
-    bg: 'rgba(16, 185, 129, 0.08)',
-    border: 'rgba(16, 185, 129, 0.2)',
-  },
-  {
-    icon: ListTodo,
-    title: '7-Day Action Plan',
-    desc: 'Translates your chosen path into concrete, reversibility-tagged daily actions.',
-    color: '#06b6d4',
-    glow: 'rgba(6, 182, 212, 0.2)',
-    bg: 'rgba(6, 182, 212, 0.08)',
-    border: 'rgba(6, 182, 212, 0.2)',
-  },
-  {
-    icon: Zap,
-    title: 'Decision Journal',
-    desc: 'A persistent second brain that logs every decision for future reflection check-ins.',
-    color: '#f43f5e',
-    glow: 'rgba(244, 63, 94, 0.2)',
-    bg: 'rgba(244, 63, 94, 0.08)',
-    border: 'rgba(244, 63, 94, 0.2)',
-  },
-];
+import NatureHero from '../components/NatureHero';
+import { AlertCircle, Eye, Compass, Map } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function Home() {
   const { isLoading, loadingMessage, error, clearError } = useApp();
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div style={{ background: '#f4f3ef', minHeight: '100vh' }}>
       <Header />
-
       {isLoading && <LoadingState message={loadingMessage} />}
 
-      <main className="flex-1 flex flex-col items-center px-4 py-12 md:py-20">
-
+      <main>
         {/* ── HERO ── */}
-        <div className="mx-auto w-full max-w-3xl text-center space-y-8 mb-14 animate-fade-up">
-
-          {/* Floating orb accents */}
-          <div className="pointer-events-none absolute left-1/4 top-24 w-72 h-72 rounded-full opacity-20 blur-3xl"
-            style={{ background: 'radial-gradient(circle, #3b6fff 0%, transparent 70%)', animation: 'orb-drift 12s ease-in-out infinite' }} />
-          <div className="pointer-events-none absolute right-1/4 top-40 w-56 h-56 rounded-full opacity-15 blur-3xl"
-            style={{ background: 'radial-gradient(circle, #8b5cf6 0%, transparent 70%)', animation: 'orb-drift 16s ease-in-out infinite reverse' }} />
-
-          {/* Live badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold"
-            style={{
-              background: 'rgba(59, 111, 255, 0.1)',
-              border: '1px solid rgba(59, 111, 255, 0.25)',
-              color: '#7ba7ff',
+        <NatureHero>
+          <div style={{ textAlign: 'center', padding: '100px 20px 60px', maxWidth: '680px', margin: '0 auto', position: 'relative', zIndex: 10 }}>
+            <div style={{
+              background: 'rgba(255, 254, 250, 0.78)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255, 255, 255, 0.65)',
+              borderRadius: '24px',
+              padding: '40px 32px',
+              boxShadow: '0 20px 50px rgba(45, 106, 79, 0.06), 0 4px 12px rgba(0,0,0,0.02)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
             }}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#3b6fff' }} />
-            USAII Global AI Hackathon 2026
-          </div>
+              <motion.h1
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.9 }}
+                style={{
+                  fontFamily: "'Fraunces', serif", fontWeight: 400,
+                  fontSize: 'clamp(2.5rem, 6vw, 3.6rem)',
+                  color: '#1b3a2a', marginBottom: '16px',
+                  letterSpacing: '-0.02em', lineHeight: 1.15,
+                }}
+              >
+                Two paths diverge.<br />
+                <em style={{ color: '#2d6a4f', fontStyle: 'italic' }}>Which one is yours?</em>
+              </motion.h1>
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, delay: 0.4 }}
+                style={{ fontSize: '16.5px', color: '#3d3b35', maxWidth: '480px', margin: '0 auto 28px', lineHeight: 1.65 }}
+              >
+                An AI thinking partner that surfaces your hidden assumptions,
+                stress-tests your priorities, and reveals where each path actually leads.
+              </motion.p>
 
-          {/* Headline */}
-          <div className="space-y-4">
-            <h2 className="text-4xl font-black tracking-tight leading-tight sm:text-5xl md:text-6xl"
-              style={{ color: '#f0f4ff' }}>
-              See What You
-              <span className="relative ml-3 inline-block">
-                <span style={{
-                  background: 'linear-gradient(135deg, #3b6fff 0%, #8b5cf6 50%, #06b6d4 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}>Can't See</span>
-              </span>
-            </h2>
-            <p className="mx-auto max-w-2xl text-base font-medium leading-relaxed" style={{ color: '#9ba8c9' }}>
-              An AI decision simulator that surfaces hidden assumptions, stress-tests your thinking with interactive controls, and hands you a concrete 7-day execution plan.
-            </p>
-          </div>
-
-          {/* Stats row */}
-          <div className="flex flex-wrap items-center justify-center gap-6 pt-2">
-            {[
-              { val: '5', label: 'Dimensions Scored' },
-              { val: '90', label: 'Days Modeled' },
-              { val: '∞', label: 'What-If Toggles' },
-            ].map(({ val, label }) => (
-              <div key={label} className="text-center">
-                <div className="text-2xl font-black" style={{
-                  background: 'linear-gradient(135deg, #3b6fff, #8b5cf6)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}>{val}</div>
-                <div className="text-[11px] font-semibold mt-0.5" style={{ color: '#5c6b8c' }}>{label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── FEATURES GRID ── */}
-        <div className="w-full max-w-4xl mb-14">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4">
-            {FEATURES.map((f, i) => {
-              const Icon = f.icon;
-              return (
-                <div
-                  key={f.title}
-                  className="flex items-start gap-3 p-4 rounded-2xl transition-all duration-300 group cursor-default animate-fade-up"
-                  style={{
-                    background: f.bg,
-                    border: `1px solid ${f.border}`,
-                    animationDelay: `${i * 0.07}s`,
-                    backdropFilter: 'blur(10px)',
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                    (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 30px ${f.glow}`;
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.transform = '';
-                    (e.currentTarget as HTMLElement).style.boxShadow = '';
-                  }}
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
-                    style={{ background: `${f.color}20`, border: `1px solid ${f.color}30` }}>
-                    <Icon className="h-4 w-4" style={{ color: f.color }} />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-bold leading-tight" style={{ color: '#f0f4ff' }}>{f.title}</h4>
-                    <p className="mt-1 text-[10px] font-medium leading-relaxed" style={{ color: '#9ba8c9' }}>{f.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Global Error Banner */}
-        {error && (
-          <div className="mb-6 w-full max-w-3xl rounded-2xl p-4 flex items-start justify-between gap-3 animate-fade-in"
-            style={{
-              background: 'rgba(244, 63, 94, 0.1)',
-              border: '1px solid rgba(244, 63, 94, 0.25)',
-            }}>
-            <div className="flex gap-2 items-start">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#fb7185' }} />
-              <p className="text-xs font-semibold leading-relaxed" style={{ color: '#fb7185' }}>{error}</p>
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: 0.7 }}
+                onClick={() => document.getElementById('begin')?.scrollIntoView({ behavior: 'smooth' })}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '10px',
+                  padding: '14px 28px',
+                  background: '#2d6a4f', color: '#fff', border: 'none',
+                  borderRadius: '50px', fontSize: '15px', fontWeight: 600,
+                  fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 6px 20px rgba(45,106,79,0.25)',
+                }}
+              >
+                Begin your decision
+              </motion.button>
             </div>
-            <button
-              onClick={clearError}
-              className="text-[10px] font-bold uppercase transition-colors shrink-0 cursor-pointer"
-              style={{ color: '#5c6b8c' }}
-            >
-              Dismiss
-            </button>
           </div>
-        )}
+        </NatureHero>
 
-        {/* The Form */}
-        <IntakeForm />
+        {/* ── DEMO MODE BANNER ── */}
+        <section style={{ padding: '20px 20px 0', background: '#f4f3ef' }}>
+          <div style={{ maxWidth: '680px', margin: '0 auto' }}>
+            <div style={{ background: '#f0fdf4', border: '1.5px solid #d1e7dd', borderRadius: '16px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '22px' }}>🌱</span>
+              <p style={{ fontSize: '13px', color: '#1b4332', fontWeight: 600, flex: 1, minWidth: '200px' }}>
+                No API key needed. The app works fully with our local scenario engine — just scroll down and begin.
+              </p>
+              <span style={{ fontSize: '10px', color: '#2d6a4f', background: '#d8f5e3', borderRadius: '20px', padding: '4px 12px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                Try it now →
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 3 PILLARS — connected to project core ── */}
+        <section style={{ padding: '80px 20px 60px', background: '#f4f3ef' }}>
+          <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              style={{ textAlign: 'center', marginBottom: '48px' }}
+            >
+              <p className="section-label" style={{ marginBottom: '10px' }}>How it works</p>
+              <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', color: '#1b1b18', fontWeight: 400 }}>
+                Three doors before the decision.
+              </h2>
+            </motion.div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+              {[
+                { icon: Eye, title: 'See what you can\'t see', desc: 'AI names the cognitive biases hidden in how you framed the choice.', color: '#2d6a4f' },
+                { icon: Map, title: 'Walk every path', desc: 'Drag sliders, toggle constraints, watch outcomes shift in real time.', color: '#774936' },
+                { icon: Compass, title: 'Choose with clarity', desc: 'Commit when you\'re ready — get a 7-day plan with real opportunity links.', color: '#d4a373' },
+              ].map((p, i) => {
+                const Icon = p.icon;
+                return (
+                  <motion.div
+                    key={p.title}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: i * 0.1 }}
+                    style={{ background: '#fff', border: '1px solid #dedad2', borderRadius: '20px', padding: '28px 24px', boxShadow: '0 2px 8px rgba(27,27,24,0.04)' }}
+                  >
+                    <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: `${p.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                      <Icon style={{ width: '22px', height: '22px', color: p.color }} />
+                    </div>
+                    <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: '20px', color: '#1b1b18', marginBottom: '8px', fontWeight: 500 }}>{p.title}</h3>
+                    <p style={{ fontSize: '14px', color: '#3d3b35', lineHeight: 1.6 }}>{p.desc}</p>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── FORM ── */}
+        <section id="begin" style={{ padding: '40px 20px 80px', background: '#eae8e1' }}>
+          <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+              <p className="section-label" style={{ marginBottom: '8px' }}>Begin</p>
+              <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.4rem)', fontFamily: "'Fraunces', serif", color: '#1b1b18', fontWeight: 400 }}>
+                Tell us your crossroads.
+              </h2>
+              <p style={{ fontSize: '14px', color: '#7c7b72', marginTop: '6px' }}>5 questions. 2 minutes. No signup.</p>
+            </div>
+
+            {error && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: '#fff', border: '1px solid #dedad2', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px' }}>
+                <AlertCircle size={16} style={{ color: '#9b2226', marginTop: '2px', flexShrink: 0 }} />
+                <p style={{ fontSize: '14px', color: '#1b1b18', flex: 1 }}>{error}</p>
+                <button onClick={clearError} style={{ fontSize: '12px', color: '#7c7b72', background: 'none', border: 'none', cursor: 'pointer' }}>Dismiss</button>
+              </div>
+            )}
+            <div style={{ background: '#fff', border: '1px solid #dedad2', borderRadius: '20px', padding: 'clamp(20px, 4vw, 32px)', boxShadow: '0 4px 16px rgba(27,27,24,0.05)' }}>
+              <IntakeForm />
+            </div>
+          </div>
+        </section>
+
+        {/* ── FOOTER ── */}
+        <footer style={{ padding: '32px 20px', borderTop: '1px solid #dedad2', background: '#f4f3ef', textAlign: 'center' }}>
+          <p style={{ fontFamily: "'Fraunces', serif", fontSize: '16px', color: '#2d6a4f', fontWeight: 500 }}>Crossroads</p>
+          <p style={{ fontSize: '13px', color: '#7c7b72', marginTop: '4px' }}>The AI structures the thinking. The human owns the decision.</p>
+        </footer>
       </main>
     </div>
   );

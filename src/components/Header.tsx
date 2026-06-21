@@ -1,118 +1,113 @@
 'use client';
 
-import React from 'react';
-import { Compass, RotateCcw, BookOpen, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { RotateCcw } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useApp } from '../context/AppContext';
 
 export default function Header() {
   const { intake, resetApp, isLoading } = useApp();
+  const [memoryCount, setMemoryCount] = useState(0);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('crossroads_journal_history');
+      if (saved) setMemoryCount(JSON.parse(saved)?.length || 0);
+    } catch { /* ignore */ }
+  }, []);
+
+  const isHome = pathname === '/' || pathname === '';
+  const isJournal = pathname === '/journal';
+
+  const logoSvg = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: 'var(--green-light)', flexShrink: 0 }}>
+      {/* Curved path 1 */}
+      <path d="M4 20C4 20 8 16 12 16C16 16 20 18 20 18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      {/* Crossroads path 2 */}
+      <path d="M4 4C4 4 9 8 12 12C15 16 20 20 20 20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      {/* Leaf node at decision point */}
+      <path d="M12 12C12 12 13.5 9 16 8C18.5 7 19.5 8 19.5 8C19.5 8 18.5 10 16 11.5C13.5 13 12 12 12 12Z" fill="currentColor" opacity="0.9" />
+    </svg>
+  );
 
   return (
-    <header className="sticky top-0 z-40 w-full" style={{
-      background: 'rgba(8, 11, 20, 0.80)',
-      backdropFilter: 'blur(20px) saturate(180%)',
-      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-      borderBottom: '1px solid rgba(99, 116, 163, 0.15)',
+    <header style={{
+      position: 'sticky', top: 0, zIndex: 40,
+      background: 'rgba(252, 252, 249, 0.82)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
+      borderBottom: '1px solid rgba(223, 219, 207, 0.5)',
     }}>
-      <div className="mx-auto flex max-w-7xl h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Logo + Nav */}
-        <div className="flex items-center gap-6">
-          <div
-            className="flex items-center gap-3 cursor-pointer transition-all hover:opacity-90 group"
-            onClick={resetApp}
-          >
-            {/* Logo mark */}
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl shrink-0"
-              style={{
-                background: 'linear-gradient(135deg, #3b6fff 0%, #6366f1 100%)',
-                boxShadow: '0 4px 16px rgba(59, 111, 255, 0.4)',
-              }}>
-              {/* Gloss overlay */}
-              <div className="absolute inset-0 rounded-xl" style={{
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%)',
-              }} />
-              <Compass className="h-5 w-5 text-white animate-spin-slow relative z-10" />
-            </div>
+      <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px', padding: '0 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
+          <button onClick={resetApp} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>
+            {logoSvg}
+            <span style={{ fontFamily: "'Fraunces', serif", fontSize: '20px', fontWeight: 600, color: 'var(--ink)' }}>
+              Crossroads
+            </span>
+          </button>
 
-            <div>
-              <h1 className="text-base font-black tracking-tight leading-none"
-                style={{ color: '#f0f4ff' }}>
-                Crossroads
-              </h1>
-              <p className="hidden text-[10px] font-semibold mt-0.5 sm:block"
-                style={{ color: '#5c6b8c' }}>
-                AI Decision Simulator
-              </p>
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex items-center gap-1" style={{ borderLeft: '1px solid rgba(99, 116, 163, 0.2)', paddingLeft: '24px' }}>
-            <Link
-              href="/"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{ color: '#9ba8c9' }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.color = '#f0f4ff';
-                (e.currentTarget as HTMLElement).style.background = 'rgba(99, 116, 163, 0.1)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.color = '#9ba8c9';
-                (e.currentTarget as HTMLElement).style.background = 'transparent';
+          <nav style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Link 
+              href="/" 
+              style={{ 
+                padding: '6px 14px', 
+                borderRadius: '10px', 
+                fontSize: '14px', 
+                fontWeight: 600, 
+                fontFamily: "'Outfit', sans-serif",
+                color: isHome ? 'var(--green)' : 'var(--muted)', 
+                background: isHome ? 'var(--green-dim)' : 'transparent',
+                textDecoration: 'none',
+                transition: 'all 0.2s ease'
               }}
             >
-              <Zap className="h-3.5 w-3.5" />
-              <span>New Decision</span>
+              New Decision
             </Link>
-            <Link
-              href="/journal"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{ color: '#9ba8c9' }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.color = '#f0f4ff';
-                (e.currentTarget as HTMLElement).style.background = 'rgba(99, 116, 163, 0.1)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.color = '#9ba8c9';
-                (e.currentTarget as HTMLElement).style.background = 'transparent';
+            <Link 
+              href="/journal" 
+              style={{ 
+                padding: '6px 14px', 
+                borderRadius: '10px', 
+                fontSize: '14px', 
+                fontWeight: 600, 
+                fontFamily: "'Outfit', sans-serif",
+                color: isJournal ? 'var(--green)' : 'var(--muted)', 
+                background: isJournal ? 'var(--green-dim)' : 'transparent',
+                textDecoration: 'none', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                transition: 'all 0.2s ease'
               }}
             >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span>Decision Journal</span>
+              Second Brain
+              {memoryCount > 0 && (
+                <span style={{ 
+                  fontSize: '11px', 
+                  fontWeight: 700, 
+                  padding: '1px 6px', 
+                  borderRadius: '100px', 
+                  background: isJournal ? 'var(--green)' : 'var(--green-soft)', 
+                  color: isJournal ? '#fff' : 'var(--green)',
+                  transition: 'all 0.2s ease'
+                }}>
+                  {memoryCount}
+                </span>
+              )}
             </Link>
           </nav>
         </div>
 
-        {/* Right side */}
-        <div className="flex items-center gap-3">
-          {/* Hackathon badge */}
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold"
-            style={{
-              background: 'rgba(59, 111, 255, 0.12)',
-              border: '1px solid rgba(59, 111, 255, 0.25)',
-              color: '#7ba7ff',
-            }}>
-            <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#3b6fff' }} />
-            USAII 2026
-          </div>
-
-          {intake && (
-            <button
-              onClick={resetApp}
-              disabled={isLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
-              style={{
-                background: 'rgba(244, 63, 94, 0.1)',
-                border: '1px solid rgba(244, 63, 94, 0.2)',
-                color: '#fb7185',
-              }}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>Start Over</span>
-            </button>
-          )}
-        </div>
+        {intake && (
+          <button onClick={resetApp} disabled={isLoading}
+            className="btn-ghost"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+            <RotateCcw size={14} /> Start Over
+          </button>
+        )}
       </div>
     </header>
   );

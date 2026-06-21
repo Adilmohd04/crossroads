@@ -2,8 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { IntakeData, AnalysisResult, ActionPlanResult } from '../lib/types';
-import { analyzeDecision, generateActionPlan as fetchActionPlan } from '../lib/gemini';
+import { IntakeData, AnalysisResult, ActionPlanResult, DecisionJournalEntry } from '../lib/types';
+
+import { generateBehaviorInsights } from '../lib/behaviorTracker';
 
 interface AppContextType {
   intake: IntakeData | null;
@@ -73,8 +74,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIntake(data);
       localStorage.setItem('crossroads_intake', JSON.stringify(data));
 
-      // Call API
-      const result = await analyzeDecision(data);
+      // Load journal history for cross-session intelligence
+      let journalHistory: DecisionJournalEntry[] = [];
+      try {
+        const historyJson = localStorage.getItem('crossroads_journal_history');
+        if (historyJson) journalHistory = JSON.parse(historyJson);
+      } catch (e) {
+        console.error('Failed to load journal history for context:', e);
+      }
+
+      // Load decision DNA for cross-session learning
+      let decisionDna = undefined;
+      try {
+        const dnaJson = localStorage.getItem('crossroads_decision_dna');
+        if (dnaJson) decisionDna = JSON.parse(dnaJson);
+      } catch (e) {
+        console.error('Failed to load decision DNA for context:', e);
+      }
+
+      // Call API with history context and Decision DNA via server-side proxy
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intake: data, history: journalHistory, dna: decisionDna }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to analyze decision');
+      }
+      const result = await res.json();
       setAnalysis(result);
       localStorage.setItem('crossroads_analysis', JSON.stringify(result));
 
@@ -109,7 +137,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       );
       const risk = scenario?.biggest_risk || 'unanticipated execution bottlenecks';
 
-      const plan = await fetchActionPlan(intake, pathName, risk);
+      const insights = generateBehaviorInsights(intake);
+      const res = await fetch('/api/action-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intake, pathName, risk, insights }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to generate action plan');
+      }
+      const plan = await res.json();
       setActionPlan(plan);
       localStorage.setItem('crossroads_action_plan', JSON.stringify(plan));
 
@@ -118,7 +156,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const historyJson = localStorage.getItem('crossroads_journal_history');
         const history = historyJson ? JSON.parse(historyJson) : [];
         
-        const newEntry = {
+        const newEntry: DecisionJournalEntry = {
           id: Date.now().toString(),
           date: new Date().toLocaleDateString(undefined, {
             year: 'numeric',
@@ -129,6 +167,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           chosen_path: pathName,
           confidence: scenario?.confidence || 75,
           options: intake.options,
+          committedAt: new Date().toISOString(),
+          category: intake.category,
+          values: intake.values,
+          constraints: intake.constraints,
         };
         
         localStorage.setItem(

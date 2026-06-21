@@ -1,155 +1,112 @@
-import { IntakeData } from './types';
+import { IntakeData, DecisionJournalEntry, DecisionDNA } from './types';
+import { buildHistoryContext } from './secondBrain';
 
-/**
- * Builds the prompt for Prompt 1: Assumption Check + Scenario Generation
- */
-export function buildAnalysisPrompt(intake: IntakeData): string {
-  const optionsList = intake.options
-    .filter((o) => o.trim())
-    .map((o, idx) => `Option ${idx + 1}: "${o.trim()}"`)
+export function buildAnalysisPrompt(
+  intake: IntakeData,
+  history?: DecisionJournalEntry[],
+  dna?: DecisionDNA
+): string {
+  const optionsList = (intake.options || [])
+    .filter((o) => o && o.trim())
+    .map((o, idx) => `${idx + 1}. "${o.trim()}"`)
     .join('\n');
 
-  const constraintsList = intake.constraints.join(', ');
-  const valuesList = intake.values.join(', ');
+  const runwayMonths = intake.savings && intake.monthly_budget
+    ? Math.round(intake.savings / intake.monthly_budget)
+    : null;
 
-  return `You are a decision reasoning engine. Your job is NOT to give advice or pick a winner. Your job is to help the user SEE what they're not seeing.
+  const dnaContext = dna 
+    ? `\nUSER DECISION DNA PROFILE (LEARNED MEMORY):
+Summary of their decision-making style: "${dna.summary}"
+Their blind spots: "${dna.blind_spot}"
+Observed patterns:
+${dna.patterns.map(p => `- ${p.pattern}: ${p.insight}`).join('\n')}
 
-USER SITUATION:
-- Decision: ${intake.decision}
-- Options being considered:
+CRITICAL INSTRUCTION:
+The user has faced previous life decisions, and the system has learned their Decision DNA. You MUST incorporate this to challenge their patterns:
+- Identify if their current decision repeats their signature blind spots or biases.
+- In Task 1 (Assumptions), explicitly challenge them if they are repeating a past bias or pattern. Reference their Decision DNA in at least one assumption (e.g. "Reflecting your pattern of prioritizing safety over growth, you are assuming...").
+- In Task 2 (Scenarios), adjust the confidence scores or risks to reflect their learned history.`
+    : '';
+
+  return `You are a decision reasoning engine. Give insights so specific that the user says "how did it know that about me?" Every insight must reference at least 2 of their specific inputs — NOT generic advice.
+
+USER:
+Decision: ${intake.decision}
+Options:
 ${optionsList}
-- Constraints: ${constraintsList}
-- Values (ranked): ${valuesList}
-- Timeline: ${intake.timeline}
-- Biggest fear: ${intake.fear}
+Constraints: ${intake.constraints.join(', ')}
+Values (ranked): ${intake.values.join(' > ')}
+Timeline: ${intake.timeline}
+Fear: "${intake.fear}"
+${intake.savings ? `Savings: $${intake.savings.toLocaleString()}` : ''}${intake.monthly_budget ? `, Monthly burn: $${intake.monthly_budget}` : ''}${runwayMonths ? `, Runway: ~${runwayMonths} months` : ''}
+${history && history.length > 0 ? buildHistoryContext(history) : ''}
+${dnaContext}
 
-INSTRUCTIONS:
+TASK 1: 3 hidden assumptions. Each MUST reference their specific fear, savings, timeline, or values. Name the cognitive bias.
 
-1. HIDDEN ASSUMPTIONS — Identify exactly 3 assumptions the user is making without realizing it.
-   For each:
-   - What they're assuming (stated as a belief they hold)
-   - Why it might not be true (with specific reasoning)
-   - What changes if this assumption is wrong
+TASK 2: One scenario per option. Each narrative MUST mention their fear "${intake.fear.slice(0, 60)}" or their specific numbers. Confidence scores must differ by 15+ points. For confidence_reasoning: use their actual constraints, not general statements.
 
-2. SCENARIOS — Generate exactly one scenario for each option they are considering. The array must contain exactly the same number of scenarios as there are options.
-   For each scenario:
-   - option_name: the path name (MUST match one of the input options exactly)
-   - narrative_30_days: what life looks like at 30 days (2-3 specific sentences)
-   - narrative_60_days: what life looks like at 60 days (2-3 specific sentences)
-   - narrative_90_days: what life looks like at 90 days (2-3 specific sentences)
-   - confidence: 0-100 score for how likely this outcome is given THEIR constraints
-   - confidence_reasoning: one sentence explaining WHY this confidence score
-   - hidden_cost: one non-obvious thing they haven't priced in
-   - biggest_risk: one concrete thing that could go wrong
-   - what_you_give_up: one specific thing they lose by choosing this path
-    - alignment_score: 0-100 how well this aligns with their stated values
-    - dimension_scores: an object containing 0-100 scores representing how this option ranks across five standard dimensions:
-        - financial: monetary compensation, costs, financial safety net
-        - emotional: stress levels, mental health, overall happiness, alignment with personal peace
-        - growth: career progression, learning opportunities, skill compounding
-        - stability: safety, low volatility, predictability of the path
-        - relationships: quality time, location proximity, connection to family/partner/friends
+TASK 3: One uncertainty paragraph specific to their situation.
 
-3. UNCERTAINTY DISCLOSURE — One paragraph explaining what you CANNOT know about their situation and where your reasoning might be wrong.
+RULES: Never say "you should." Never pick a winner. Use Google Search for real programs/salaries/deadlines matching their situation.
 
-RULES:
-- NEVER say "you should" or "the best option is"
-- NEVER present one scenario as clearly superior
-- Always acknowledge uncertainty honestly
-- Be specific to THEIR situation — no generic advice
-- USE THE GOOGLE SEARCH TOOL: You must execute Google search queries to look up actual, real-world master's programs, university names, active application deadlines, and specific job openings that match the user's location, background, and constraints.
-- INCLUDE REAL OPPORTUNITIES: In the scenario narratives, you must name specific, real universities (e.g. 'Imperial College MSc', 'Georgia Tech OMSCS'), actual companies, or certifications they can check out, rather than generic placeholders.
-- Hidden costs must be non-obvious (not "it costs money" — something they haven't thought of)
-- Confidence scores should vary meaningfully (don't make them all 70-80)
-- Narratives should feel like a story about THEIR life, not abstract projections
-
-OUTPUT: Return ONLY valid JSON matching this exact schema:
+OUTPUT JSON only:
 {
-  "assumptions": [
-    {
-      "assumption": "string — what they believe without realizing",
-      "why_wrong": "string — specific reason this might not hold",
-      "what_changes": "string — how the decision looks different without this assumption"
-    }
-  ],
-  "scenarios": [
-    {
-      "option_name": "string",
-      "narrative_30_days": "string",
-      "narrative_60_days": "string",
-      "narrative_90_days": "string",
-      "confidence": 75,
-      "confidence_reasoning": "string",
-      "hidden_cost": "string",
-      "biggest_risk": "string",
-      "what_you_give_up": "string",
-      "alignment_score": 80,
-      "dimension_scores": {
-        "financial": 70,
-        "emotional": 60,
-        "growth": 80,
-        "stability": 90,
-        "relationships": 50
-      }
-    }
-  ],
-  "uncertainty_disclosure": "string — what the AI cannot know"
+  "assumptions": [{"assumption":"","why_wrong":"","what_changes":"","cognitive_bias":""}],
+  "scenarios": [{
+    "option_name":"",
+    "narrative_30_days":"","narrative_60_days":"","narrative_90_days":"",
+    "confidence":0,"confidence_reasoning":"",
+    "hidden_cost":"","biggest_risk":"","what_you_give_up":"",
+    "alignment_score":0,
+    "dimension_scores":{"financial":0,"emotional":0,"growth":0,"stability":0,"relationships":0}
+  }],
+  "uncertainty_disclosure":""
 }`;
 }
 
-/**
- * Builds the prompt for Prompt 2: Action Plan Generation
- */
+import { BehaviorInsight } from './behaviorTracker';
+
 export function buildActionPlanPrompt(
   intake: IntakeData,
   chosenPath: string,
-  risk: string
+  risk: string,
+  behavioralInsights?: BehaviorInsight[]
 ): string {
-  const constraintsList = intake.constraints.join(', ');
+  const runwayMonths = intake.savings && intake.monthly_budget
+    ? Math.round(intake.savings / intake.monthly_budget)
+    : null;
 
-  return `The user has analyzed their decision and made a choice. Generate a concrete, actionable 7-day plan to begin executing their chosen path.
+  const behavioralCtx = behavioralInsights && behavioralInsights.length > 0
+    ? `\nBEHAVIORAL OBSERVATIONS DURING SIMULATION:
+The user's real-time interaction patterns revealed the following insights:
+${behavioralInsights.map(insight => `- [${insight.title}] Observation: ${insight.observation.replace(/\n/g, ' ')} | Interpretation: ${insight.interpretation}`).join('\n')}
 
-CHOSEN PATH: ${chosenPath}
-USER SITUATION: ${intake.decision}
-CONSTRAINTS: ${constraintsList}
-TIMELINE: ${intake.timeline}
-KEY RISK IDENTIFIED: ${risk}
+INCORPORATE THESE INSIGHTS:
+- Modify/adjust the 7-day action items to directly address these observed behaviors.
+- For instance, if they showed financial anxiety, ensure the plan has specific financial risk mitigation or budgeting deliverables. If they showed stated vs. revealed priority conflict, add reflection prompts or micro-actions to address this conflict.`
+    : '';
 
-INSTRUCTIONS:
-Generate exactly 7 days of specific actions. Each action must be:
-- Specific and concrete (not "research options" — instead "search LinkedIn for 3 people in [field] and send connection requests with this message: ...")
-- Time-bound (morning / afternoon / evening suggestion)
-- Ordered by urgency (deadline-sensitive items first)
-- Flag any irreversible steps clearly
+  return `Generate a personalized 7-day action plan.
 
-Day 1 should always be the most urgent/time-sensitive action.
-Day 7 should be a reflection + adjustment checkpoint.
+PERSON: chose "${chosenPath}"
+Decision: ${intake.decision}
+Fear: "${intake.fear}"
+Top value: ${intake.values[0] || 'growth'}
+Timeline: ${intake.timeline}
+Constraints: ${intake.constraints.join(', ')}
+${intake.savings ? `Savings: $${intake.savings.toLocaleString()}${runwayMonths ? `, ~${runwayMonths} months runway` : ''}` : ''}
+Key risk: ${risk}
+${behavioralCtx}
 
-Include one "if this doesn't work" fallback plan at the end.
+Rules: Every task = specific deliverable. No "research" or "consider." Day 1 addresses "${intake.timeline}." Reference their fear. Use Google Search for actual URLs/portals.
 
-RULES:
-- Each action must be a single concrete task a person could complete in under 2 hours.
-- Every action MUST name a specific deliverable: an email sent, a call made, a document drafted, a form submitted, a profile updated. Never use "research", "consider", "explore", or "look into" as the verb.
-- USE GOOGLE SEARCH: Search for the actual web portal link, specific application page, or program email address associated with the chosen option, and include these specific resources in the daily tasks.
-- Actions must be achievable by one person in a normal day
-- Don't assume resources the user hasn't mentioned having
-- Flag steps that require spending money
-- Flag steps that are hard to reverse
-
-OUTPUT: Return ONLY valid JSON matching this exact schema:
+OUTPUT JSON only:
 {
-  "chosen_path": "string — the option they selected",
-  "plan": [
-    {
-      "day": 1,
-      "action": "string — specific action to take",
-      "why_first": "string — why this needs to happen today",
-      "time_of_day": "morning | afternoon | evening",
-      "reversible": true,
-      "costs_money": false
-    }
-  ],
-  "reflection_prompt": "string — question to ask yourself on day 7",
-  "fallback": "string — if this path doesn't work, here's your backup plan"
+  "chosen_path":"${chosenPath}",
+  "plan":[{"day":1,"action":"","why_first":"","time_of_day":"morning","reversible":true,"costs_money":false}],
+  "reflection_prompt":"",
+  "fallback":""
 }`;
 }

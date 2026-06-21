@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowRight, 
@@ -11,7 +11,8 @@ import {
   ChevronUp, 
   ChevronDown, 
   AlertCircle,
-  Zap
+  Zap,
+  Mic
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { 
@@ -31,6 +32,85 @@ const STEPS = [
   { id: 5, title: 'Timeline & Fear' }
 ];
 
+function VoiceButton({ onTranscript }: { onTranscript: (text: string) => void }) {
+  const [isListening, setIsListening] = useState(false);
+  const [supported, setSupported] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setSupported(true);
+      }
+    }
+  }, []);
+
+  if (!supported) return null;
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setErrorMsg('');
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error', event.error);
+      setIsListening(false);
+      if (event.error === 'not-allowed') {
+        setErrorMsg('Mic access denied');
+      } else {
+        setErrorMsg('Error transcribing');
+      }
+      setTimeout(() => setErrorMsg(''), 3000);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      if (transcript) {
+        onTranscript(transcript);
+      }
+    };
+
+    recognition.start();
+  };
+
+  return (
+    <div className="flex flex-col gap-2 w-full">
+      <button
+        type="button"
+        onClick={startListening}
+        className={isListening ? "flex items-center justify-center gap-2 w-full py-3 rounded-xl transition-all cursor-pointer" : "wood-btn-light w-full"}
+        style={isListening ? {
+          background: 'var(--orange-soft)',
+          border: '2px solid var(--orange-accent)',
+          color: 'var(--orange-accent)',
+          boxShadow: '0 0 15px rgba(234, 88, 12, 0.25)',
+        } : { padding: '12px' }}
+        title="Speak instead of typing"
+      >
+        <Mic className="h-4 w-4" />
+        <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '13px', fontWeight: 600 }}>
+          {isListening ? 'Listening... speak now' : 'Click to speak instead of typing'}
+        </span>
+      </button>
+      {errorMsg && (
+        <p className="text-xs font-bold text-center" style={{ color: 'var(--error)' }}>{errorMsg}</p>
+      )}
+    </div>
+  );
+}
+
 export default function IntakeForm() {
   const { submitIntake } = useApp();
   const [currentStep, setCurrentStep] = useState(1);
@@ -49,6 +129,18 @@ export default function IntakeForm() {
   
   // Validation State
   const [stepErrors, setStepErrors] = useState<string[]>([]);
+
+  // Listen for voice input from hero button
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const transcript = (e as CustomEvent).detail;
+      if (transcript && typeof transcript === 'string') {
+        setDecision(prev => prev ? prev + ' ' + transcript : transcript);
+      }
+    };
+    window.addEventListener('voice-input', handler);
+    return () => window.removeEventListener('voice-input', handler);
+  }, []);
 
   // One-click demo data loader — fills all 5 steps for judge demo
   const loadDemoData = () => {
@@ -139,6 +231,14 @@ export default function IntakeForm() {
       if (selectedConstraints.length === 0 && !customConstraint.trim()) {
         errors.push('Please select at least 1 constraint or enter a custom constraint.');
       }
+      if (selectedConstraints.includes('Limited money/savings')) {
+        if (!savings || parseFloat(savings) <= 0) {
+          errors.push('Please enter a valid savings amount greater than 0.');
+        }
+        if (!monthlyBudget || parseFloat(monthlyBudget) <= 0) {
+          errors.push('Please enter a valid monthly budget greater than 0.');
+        }
+      }
     } else if (step === 4) {
       if (rankedValues.length < 2) {
         errors.push('Please rank at least 2 values to weight your decisions.');
@@ -182,6 +282,8 @@ export default function IntakeForm() {
       finalConstraints.push(customConstraint.trim());
     }
 
+    const hasSavingsConstraint = finalConstraints.includes('Limited money/savings');
+
     const data: IntakeData = {
       decision: decision.trim(),
       options: options.map(o => o.trim()),
@@ -190,8 +292,8 @@ export default function IntakeForm() {
       timeline: timeline.trim(),
       fear: fear.trim(),
       category,
-      savings: savings ? parseFloat(savings) : undefined,
-      monthly_budget: monthlyBudget ? parseFloat(monthlyBudget) : undefined,
+      savings: hasSavingsConstraint && savings ? parseFloat(savings) : undefined,
+      monthly_budget: hasSavingsConstraint && monthlyBudget ? parseFloat(monthlyBudget) : undefined,
     };
 
     submitIntake(data);
@@ -216,34 +318,26 @@ export default function IntakeForm() {
   };
 
   return (
-    <div className="w-full max-w-3xl rounded-2xl p-6 md:p-10" style={{
-      background: 'rgba(13, 17, 32, 0.80)',
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
-      border: '1px solid rgba(99, 116, 163, 0.2)',
-      boxShadow: '0 8px 40px rgba(0,0,0,0.4)',
-    }}>
+    <div className="w-full max-w-3xl" style={{ margin: '0 auto' }}>
       {/* One-click demo banner (step 1 only) */}
       {currentStep === 1 && (
-        <div className="mb-6 flex items-center justify-between rounded-xl px-4 py-3"
-          style={{ background: 'rgba(59, 111, 255, 0.06)', border: '1px solid rgba(59, 111, 255, 0.18)' }}>
+        <div className="mb-6 flex items-center justify-between rounded-xl px-5 py-4"
+          style={{ background: 'var(--green-dim)', border: '2px double rgba(10, 60, 47, 0.25)', boxShadow: '0 4px 12px rgba(10,60,47,0.02)' }}>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#5c6b8c' }}>Quick Start</p>
-            <p className="text-xs font-semibold mt-0.5" style={{ color: '#9ba8c9' }}>Load a sample career decision to see Crossroads in action</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800" style={{ fontFamily: "'Outfit', sans-serif" }}>Quick Start</p>
+            <p className="text-xs font-bold mt-0.5" style={{ color: 'var(--green)', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Load a sample career decision to see Crossroads in action</p>
           </div>
           <button
             type="button"
             id="demo-load-btn"
             onClick={loadDemoData}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-black transition-all duration-200 shrink-0 ml-4"
+            className="flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[11px] font-black transition-all duration-200 shrink-0 ml-4 cursor-pointer"
             style={{
-              background: 'rgba(59, 111, 255, 0.2)',
-              border: '1px solid rgba(59, 111, 255, 0.4)',
-              color: '#7ba7ff',
-              boxShadow: '0 0 12px rgba(59, 111, 255, 0.2)',
+              background: 'var(--green-soft)',
+              border: '1.5px solid var(--green-light)',
+              color: 'var(--green)',
+              boxShadow: 'var(--shadow)',
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(59, 111, 255, 0.3)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(59, 111, 255, 0.2)')}
           >
             <Zap className="h-3.5 w-3.5" />
             Try Demo
@@ -252,25 +346,25 @@ export default function IntakeForm() {
       )}
 
       {/* Step Progress indicators */}
-      <div className="mb-8 pb-6" style={{ borderBottom: '1px solid rgba(99, 116, 163, 0.15)' }}>
+      <div className="mb-8 pb-6" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#5c6b8c' }}>
+          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--muted)', fontFamily: "'Outfit', sans-serif" }}>
             Step {currentStep} of 5
           </span>
-          <h2 className="text-sm font-bold" style={{ color: '#f0f4ff' }}>
+          <h2 className="text-base font-bold text-emerald-900" style={{ fontFamily: "'Fraunces', serif" }}>
             {STEPS[currentStep - 1].title}
           </h2>
         </div>
-        <div className="flex h-1.5 w-full gap-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(99, 116, 163, 0.15)' }}>
+        {/* Wood-carved groove layout */}
+        <div className="flex h-2.5 w-full gap-1.5 rounded-full p-0.5" style={{ background: '#eedfc7', border: '1px solid #c8b9a3', boxShadow: 'inset 0 1px 3px rgba(66,50,33,0.15)' }}>
           {STEPS.map((step) => (
             <div
               key={step.id}
               className="h-full flex-1 rounded-full transition-all duration-500"
               style={{
                 background: step.id <= currentStep
-                  ? 'linear-gradient(90deg, #3b6fff, #8b5cf6)'
+                  ? 'linear-gradient(90deg, #10b981, #047857)'
                   : 'transparent',
-                boxShadow: step.id <= currentStep ? '0 0 6px rgba(59, 111, 255, 0.4)' : 'none',
               }}
             />
           ))}
@@ -281,8 +375,8 @@ export default function IntakeForm() {
         <div className="flex-1">
           {/* Validation Alerts */}
           {stepErrors.length > 0 && (
-            <div className="mb-6 rounded-xl p-4 text-xs font-medium flex items-start gap-2" style={{ background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.2)', color: '#fb7185' }}>
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#fb7185' }} />
+            <div className="mb-6 rounded-xl p-4 text-xs font-medium flex items-start gap-2" style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'var(--error)' }}>
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <div className="flex flex-col gap-1">
                 {stepErrors.map((err, i) => (
                   <span key={i}>{err}</span>
@@ -302,24 +396,22 @@ export default function IntakeForm() {
                 className="space-y-6"
               >
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: '#5c6b8c' }}>
+                  <label className="block text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: '#54402a', fontFamily: "'Outfit', sans-serif" }}>
                     What category fits your decision?
                   </label>
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {DECISION_CATEGORIES.map((cat) => (
                       <button
                         key={cat.value}
                         type="button"
                         onClick={() => setCategory(cat.value)}
-                        className="flex flex-col items-start rounded-xl p-3.5 text-left transition-all cursor-pointer"
-                        style={{
-                          background: category === cat.value ? 'rgba(59, 111, 255, 0.15)' : 'rgba(8, 11, 20, 0.5)',
-                          border: category === cat.value ? '1px solid rgba(59, 111, 255, 0.4)' : '1px solid rgba(99, 116, 163, 0.18)',
-                          boxShadow: category === cat.value ? '0 0 12px rgba(59, 111, 255, 0.2)' : 'none',
-                        }}
+                        className={`wood-card-option ${category === cat.value ? 'active' : ''}`}
+                        style={{ padding: '16px' }}
                       >
-                        <span className="text-xs font-bold" style={{ color: category === cat.value ? '#7ba7ff' : '#e2e8f0' }}>{cat.label}</span>
-                        <span className="mt-1 text-[10px] line-clamp-1 leading-normal" style={{ color: '#5c6b8c' }}>
+                        <span className="text-xs font-black flex items-center gap-1.5" style={{ color: category === cat.value ? 'var(--green)' : 'var(--ink)', fontFamily: "'Outfit', sans-serif" }}>
+                          🍃 {cat.label}
+                        </span>
+                        <span className="mt-2 text-[10px] line-clamp-2 leading-normal" style={{ color: 'var(--body)', fontWeight: 500 }}>
                           {cat.examples}
                         </span>
                       </button>
@@ -327,19 +419,24 @@ export default function IntakeForm() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="decision" className="block text-[10px] font-black uppercase tracking-wider" style={{ color: '#5c6b8c' }}>
-                    Describe the decision you are facing
+                <div className="space-y-3">
+                  <label htmlFor="decision" className="block text-sm font-bold" style={{ color: '#54402a', fontFamily: "'Fraunces', serif" }}>
+                    Describe the decision you&apos;re facing
                   </label>
+                  
+                  {/* Prominent Voice Input */}
+                  <VoiceButton onTranscript={(text) => setDecision(prev => prev ? prev + ' ' + text : text)} />
+                  
                   <textarea
                     id="decision"
                     value={decision}
                     onChange={(e) => setDecision(e.target.value)}
                     placeholder="e.g. I am a recent CS graduate trying to choose between accepting a mid-level SWE role at a local mid-sized startup or pursuing a 2-year Master's in AI at a top university..."
-                    className="field h-28 leading-relaxed resize-none"
+                    className="parchment-input h-36 leading-relaxed resize-none"
+                    style={{ fontSize: '15px' }}
                   />
-                  <p className="text-[11px] leading-normal" style={{ color: '#5c6b8c' }}>
-                    Give details: what's the core conflict? The more specific details you add, the better your analysis will be.
+                  <p className="text-xs font-semibold" style={{ color: 'var(--muted)' }}>
+                    Provide details: what is the core conflict? The more specific you are, the better the AI sanctuary analysis.
                   </p>
                 </div>
               </motion.div>
@@ -356,19 +453,19 @@ export default function IntakeForm() {
               >
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: '#5c6b8c' }}>
+                    <label className="block text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: '#54402a', fontFamily: "'Outfit', sans-serif" }}>
                       What options are you considering?
                     </label>
-                    <p className="text-xs" style={{ color: '#5c6b8c' }}>
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
                       List 2 to 4 concrete paths you are choosing between.
                     </p>
                   </div>
 
                   <div className="space-y-3">
                     {options.map((option, idx) => (
-                      <div key={idx} className="flex gap-2 items-center">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
-                          style={{ background: 'rgba(59, 111, 255, 0.15)', color: '#7ba7ff' }}>
+                      <div key={idx} className="flex gap-2.5 items-center">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
+                          style={{ background: 'var(--green-soft)', border: '1px solid var(--border)', color: 'var(--green)' }}>
                           {idx + 1}
                         </span>
                         <input
@@ -382,14 +479,14 @@ export default function IntakeForm() {
                               ? "Pursue the MS in AI at University" 
                               : 'Try bootstrapping my own startup idea'
                           }`}
-                          className="field"
+                          className="parchment-input"
                         />
                         {options.length > 2 && (
                           <button
                             type="button"
                             onClick={() => handleRemoveOption(idx)}
                             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors cursor-pointer"
-                            style={{ color: '#5c6b8c' }}
+                            style={{ color: 'var(--error)', background: 'rgba(220,38,38,0.05)', border: '1px solid rgba(220,38,38,0.15)' }}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -402,8 +499,8 @@ export default function IntakeForm() {
                     <button
                       type="button"
                       onClick={handleAddOption}
-                      className="flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer"
-                      style={{ border: '1px dashed rgba(99, 116, 163, 0.35)', color: '#9ba8c9', background: 'transparent' }}
+                      className="flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-xs font-black transition-colors cursor-pointer"
+                      style={{ border: '2px dashed rgba(10,60,47,0.25)', color: 'var(--green)', background: 'transparent' }}
                     >
                       <Plus className="h-3.5 w-3.5" />
                       <span>Add Option</span>
@@ -423,13 +520,13 @@ export default function IntakeForm() {
                 className="space-y-6"
               >
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: '#5c6b8c' }}>
+                  <label className="block text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: '#54402a', fontFamily: "'Outfit', sans-serif" }}>
                     What constraints are bounding you?
                   </label>
-                  <p className="text-xs mb-4" style={{ color: '#5c6b8c' }}>
+                  <p className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
                     Select all parameters that limit your options right now.
                   </p>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {CONSTRAINT_OPTIONS.map((c) => {
                       const isSelected = selectedConstraints.includes(c);
                       return (
@@ -437,24 +534,22 @@ export default function IntakeForm() {
                           key={c}
                           type="button"
                           onClick={() => toggleConstraint(c)}
-                          className="flex items-center gap-2.5 rounded-xl p-3.5 text-left text-xs font-semibold transition-all cursor-pointer"
-                          style={{
-                            background: isSelected ? 'rgba(59, 111, 255, 0.12)' : 'rgba(8, 11, 20, 0.5)',
-                            border: isSelected ? '1px solid rgba(59, 111, 255, 0.35)' : '1px solid rgba(99, 116, 163, 0.18)',
-                            color: isSelected ? '#7ba7ff' : '#9ba8c9',
-                          }}
+                          className={`wood-card-option ${isSelected ? 'active' : ''}`}
+                          style={{ padding: '14px', width: '100%' }}
                         >
-                          <div
-                            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-all"
-                            style={{
-                              background: isSelected ? '#3b6fff' : 'transparent',
-                              borderColor: isSelected ? '#3b6fff' : 'rgba(99, 116, 163, 0.4)',
-                              color: '#fff',
-                            }}
-                          >
-                            {isSelected && <Check className="h-3 w-3" />}
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className="flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded border transition-all"
+                              style={{
+                                background: isSelected ? 'var(--green)' : 'transparent',
+                                borderColor: isSelected ? 'var(--green)' : 'rgba(10,60,47,0.2)',
+                                color: '#fff',
+                              }}
+                            >
+                              {isSelected && <Check className="h-3 w-3" />}
+                            </div>
+                            <span className="text-xs font-bold" style={{ color: isSelected ? 'var(--green)' : 'var(--body)' }}>{c}</span>
                           </div>
-                          <span className="line-clamp-1">{c}</span>
                         </button>
                       );
                     })}
@@ -468,21 +563,21 @@ export default function IntakeForm() {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden p-4 rounded-xl space-y-4"
+                      className="overflow-hidden p-5 rounded-xl space-y-4"
                       style={{
-                        background: 'rgba(59, 111, 255, 0.06)',
-                        border: '1px solid rgba(59, 111, 255, 0.2)',
+                        background: 'var(--green-dim)',
+                        border: '2px double rgba(10, 60, 47, 0.25)',
                       }}
                     >
-                      <div className="flex items-center gap-1.5 text-xs font-bold" style={{ color: '#7ba7ff' }}>
+                      <div className="flex items-center gap-1.5 text-xs font-bold" style={{ color: 'var(--green)', fontFamily: "'Outfit', sans-serif" }}>
                         <span>💰 Cash Runway Simulator Variables</span>
                       </div>
-                      <p className="text-[10px] font-semibold leading-normal" style={{ color: '#5c6b8c' }}>
-                        Providing these variables enables live financial runway projections on your dashboard.
+                      <p className="text-[10px] font-semibold leading-normal" style={{ color: 'var(--body)' }}>
+                        Providing these variables enables live financial runway sprout projections on your cockpit dashboard.
                       </p>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-1">
-                          <label className="block text-[10px] font-bold uppercase tracking-wider" style={{ color: '#5c6b8c' }}>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider" style={{ color: '#54402a' }}>
                             Current Savings ($)
                           </label>
                           <input
@@ -491,11 +586,11 @@ export default function IntakeForm() {
                             onChange={(e) => setSavings(e.target.value)}
                             placeholder="e.g. 15000"
                             min="0"
-                            className="field"
+                            className="parchment-input"
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="block text-[10px] font-bold uppercase tracking-wider" style={{ color: '#5c6b8c' }}>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider" style={{ color: '#54402a' }}>
                             Target Monthly Cost ($)
                           </label>
                           <input
@@ -504,7 +599,7 @@ export default function IntakeForm() {
                             onChange={(e) => setMonthlyBudget(e.target.value)}
                             placeholder="e.g. 2500"
                             min="0"
-                            className="field"
+                            className="parchment-input"
                           />
                         </div>
                       </div>
@@ -513,16 +608,19 @@ export default function IntakeForm() {
                 </AnimatePresence>
 
                 <div className="space-y-2">
-                  <label htmlFor="custom-constraint" className="block text-[10px] font-black uppercase tracking-wider" style={{ color: '#5c6b8c' }}>
-                    Any other custom constraint? (Optional)
-                  </label>
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="custom-constraint" className="block text-[10px] font-black uppercase tracking-wider" style={{ color: '#54402a', fontFamily: "'Outfit', sans-serif" }}>
+                      Any other custom constraint? (Optional)
+                    </label>
+                    <VoiceButton onTranscript={(text) => setCustomConstraint(prev => prev ? prev + ' ' + text : text)} />
+                  </div>
                   <input
                     id="custom-constraint"
                     type="text"
                     value={customConstraint}
                     onChange={(e) => setCustomConstraint(e.target.value)}
                     placeholder="e.g. My lease ends in 2 months, I need to stay near my family network..."
-                    className="field"
+                    className="parchment-input"
                   />
                 </div>
               </motion.div>
@@ -539,10 +637,10 @@ export default function IntakeForm() {
               >
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: '#5c6b8c' }}>
+                    <label className="block text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: '#54402a', fontFamily: "'Outfit', sans-serif" }}>
                       Rank Your Core Values
                     </label>
-                    <p className="text-xs" style={{ color: '#5c6b8c' }}>
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
                       Click up to 5 values. Selection order = your priority rank.
                     </p>
                   </div>
@@ -556,12 +654,12 @@ export default function IntakeForm() {
                           type="button"
                           onClick={() => handleValueClick(val)}
                           disabled={!isRanked && rankedValues.length >= 5}
-                          className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-40"
+                          className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-40"
                           style={{
-                            background: isRanked ? 'linear-gradient(135deg, #3b6fff, #6366f1)' : 'rgba(8, 11, 20, 0.6)',
-                            border: isRanked ? '1px solid rgba(59, 111, 255, 0.5)' : '1px solid rgba(99, 116, 163, 0.2)',
-                            color: isRanked ? '#fff' : '#9ba8c9',
-                            boxShadow: isRanked ? '0 2px 10px rgba(59, 111, 255, 0.3)' : 'none',
+                            background: isRanked ? 'var(--green)' : '#fdfbf7',
+                            border: isRanked ? '1.5px solid var(--green)' : '1px solid rgba(10,60,47,0.2)',
+                            color: isRanked ? '#fff' : 'var(--body)',
+                            boxShadow: isRanked ? 'var(--shadow)' : 'none',
                           }}
                         >
                           {isRanked && (
@@ -576,12 +674,12 @@ export default function IntakeForm() {
                   </div>
                 </div>
 
-                <div className="rounded-xl p-5 space-y-4" style={{ background: 'rgba(8, 11, 20, 0.5)', border: '1px solid rgba(99, 116, 163, 0.15)' }}>
-                  <h3 className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#5c6b8c' }}>
+                <div className="rounded-xl p-5 space-y-4" style={{ background: '#fdfbf7', border: '2px double rgba(10, 60, 47, 0.15)', boxShadow: 'inset 0 1px 3px rgba(66,50,33,0.02)' }}>
+                  <h3 className="text-[10px] font-black uppercase tracking-wider text-emerald-800" style={{ fontFamily: "'Outfit', sans-serif" }}>
                     Your Priority Ranking:
                   </h3>
                   {rankedValues.length === 0 ? (
-                    <div className="flex h-28 items-center justify-center rounded-lg text-xs font-medium" style={{ border: '1px dashed rgba(99, 116, 163, 0.2)', color: '#3a4a6b' }}>
+                    <div className="flex h-28 items-center justify-center rounded-lg text-xs font-medium" style={{ border: '1px dashed rgba(10,60,47,0.25)', color: 'var(--muted)' }}>
                       No values selected yet
                     </div>
                   ) : (
@@ -594,14 +692,14 @@ export default function IntakeForm() {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="flex items-center justify-between rounded-lg px-3.5 py-2.5"
-                            style={{ background: 'rgba(13, 17, 32, 0.8)', border: '1px solid rgba(99, 116, 163, 0.15)' }}
+                            style={{ background: '#ffffff', border: '1px solid var(--border-light)' }}
                           >
                             <div className="flex items-center gap-2">
                               <span className="flex h-5 w-5 items-center justify-center rounded-md text-xs font-bold"
-                                style={{ background: 'rgba(59, 111, 255, 0.15)', color: '#7ba7ff' }}>
+                                style={{ background: 'var(--green-soft)', color: 'var(--green)' }}>
                                 {idx + 1}
                               </span>
-                              <span className="text-xs font-bold" style={{ color: '#e2e8f0' }}>
+                              <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
                                 {val}
                               </span>
                             </div>
@@ -611,7 +709,7 @@ export default function IntakeForm() {
                                 disabled={idx === 0}
                                 onClick={() => moveRankedValue(idx, 'up')}
                                 className="rounded-md p-1 transition-colors disabled:opacity-30 cursor-pointer"
-                                style={{ color: '#5c6b8c' }}
+                                style={{ color: '#3d3b35' }}
                               >
                                 <ChevronUp className="h-3.5 w-3.5" />
                               </button>
@@ -620,7 +718,7 @@ export default function IntakeForm() {
                                 disabled={idx === rankedValues.length - 1}
                                 onClick={() => moveRankedValue(idx, 'down')}
                                 className="rounded-md p-1 transition-colors disabled:opacity-30 cursor-pointer"
-                                style={{ color: '#5c6b8c' }}
+                                style={{ color: '#3d3b35' }}
                               >
                                 <ChevronDown className="h-3.5 w-3.5" />
                               </button>
@@ -644,31 +742,37 @@ export default function IntakeForm() {
                 className="space-y-6"
               >
                 <div className="space-y-2">
-                  <label htmlFor="timeline" className="block text-[10px] font-black uppercase tracking-wider" style={{ color: '#5c6b8c' }}>
-                    What is your timeline for deciding?
-                  </label>
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="timeline" className="block text-[10px] font-black uppercase tracking-wider" style={{ color: '#54402a', fontFamily: "'Outfit', sans-serif" }}>
+                      What is your timeline for deciding?
+                    </label>
+                    <VoiceButton onTranscript={(text) => setTimeline(prev => prev ? prev + ' ' + text : text)} />
+                  </div>
                   <input
                     id="timeline"
                     type="text"
                     value={timeline}
                     onChange={(e) => setTimeline(e.target.value)}
                     placeholder="e.g. Need to respond to the job offer within 10 days"
-                    className="field"
+                    className="parchment-input"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="fear" className="block text-[10px] font-black uppercase tracking-wider" style={{ color: '#5c6b8c' }}>
-                    What is your biggest fear regarding this decision?
-                  </label>
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="fear" className="block text-[10px] font-black uppercase tracking-wider" style={{ color: '#54402a', fontFamily: "'Outfit', sans-serif" }}>
+                      What is your biggest fear regarding this decision?
+                    </label>
+                    <VoiceButton onTranscript={(text) => setFear(prev => prev ? prev + ' ' + text : text)} />
+                  </div>
                   <textarea
                     id="fear"
                     value={fear}
                     onChange={(e) => setFear(e.target.value)}
                     placeholder="e.g. That I will make the 'safe' choice and regret not specializing in AI research, or that I will fail in grad school and end up with immense debt and no job."
-                    className="field h-28 leading-relaxed resize-none"
+                    className="parchment-input h-32 leading-relaxed resize-none"
                   />
-                  <p className="text-[11px] leading-normal" style={{ color: '#5c6b8c' }}>
+                  <p className="text-xs font-semibold" style={{ color: 'var(--muted)' }}>
                     This fear provides deep emotional context that helps the AI challenge assumptions and outline downside risks.
                   </p>
                 </div>
@@ -678,12 +782,12 @@ export default function IntakeForm() {
         </div>
 
         {/* Form controls */}
-        <div className="mt-8 flex items-center justify-between pt-6" style={{ borderTop: '1px solid rgba(99, 116, 163, 0.15)' }}>
+        <div className="mt-8 flex items-center justify-between pt-6" style={{ borderTop: '1px solid rgba(10,60,47,0.15)' }}>
           {currentStep > 1 ? (
             <button
               type="button"
               onClick={handlePrev}
-              className="btn-ghost"
+              className="wood-btn-light"
             >
               <ArrowLeft className="h-4 w-4" />
               <span>Back</span>
@@ -696,7 +800,7 @@ export default function IntakeForm() {
             <button
               type="button"
               onClick={handleNext}
-              className="btn-primary"
+              className="wood-btn"
             >
               <span>Next Step</span>
               <ArrowRight className="h-4 w-4" />
@@ -704,7 +808,7 @@ export default function IntakeForm() {
           ) : (
             <button
               type="submit"
-              className="btn-primary px-7 py-3"
+              className="wood-btn"
             >
               <span>Run AI Simulator</span>
               <ArrowRight className="h-4 w-4" />

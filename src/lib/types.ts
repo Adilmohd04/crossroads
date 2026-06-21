@@ -51,6 +51,9 @@ export interface Assumption {
 
   /** How the decision looks different without this assumption */
   what_changes: string;
+
+  /** Named cognitive bias (e.g. "Anchoring Bias", "Sunk Cost Fallacy") */
+  cognitive_bias?: string;
 }
 
 export interface DimensionScores {
@@ -96,6 +99,11 @@ export interface Scenario {
   dimension_scores: DimensionScores;
 }
 
+export interface GroundingSource {
+  title: string;
+  url: string;
+}
+
 export interface AnalysisResult {
   /** 3 hidden assumptions */
   assumptions: Assumption[];
@@ -105,6 +113,15 @@ export interface AnalysisResult {
 
   /** What the AI cannot know about this situation */
   uncertainty_disclosure: string;
+
+  /** Dynamic agent research queries */
+  agent_search_queries?: string[];
+
+  /** Dynamic agent citation sources */
+  agent_sources?: GroundingSource[];
+
+  /** Flag to indicate if the response is locally generated mock data */
+  is_mock?: boolean;
 }
 
 // === ACTION PLAN (from Gemini Prompt 2) ===
@@ -141,6 +158,9 @@ export interface ActionPlanResult {
 
   /** Backup plan if this path doesn't work */
   fallback: string;
+
+  /** Flag to indicate if the response is locally generated mock data */
+  is_mock?: boolean;
 }
 
 // === UI STATE ===
@@ -164,6 +184,46 @@ export interface DecisionJournalEntry {
   confidence: number;
   options: string[];
   reflections?: string;
+  /** ISO timestamp of when the decision was committed */
+  committedAt?: string;
+  /** Category of the decision */
+  category?: DecisionCategory;
+  /** The ranked values at time of decision */
+  values?: string[];
+  /** The constraints at time of decision */
+  constraints?: string[];
+}
+
+// === SECOND BRAIN INTELLIGENCE ===
+
+export interface DecisionPattern {
+  /** Pattern title */
+  pattern: string;
+  /** Explanation of what it means */
+  insight: string;
+  /** How many past decisions this applies to */
+  occurrences: number;
+  /** Sentiment: positive, neutral, or cautionary */
+  sentiment: 'positive' | 'neutral' | 'cautionary';
+}
+
+export interface DecisionDNA {
+  /** One-paragraph personal decision profile */
+  summary: string;
+  /** Top 3 decision patterns */
+  patterns: DecisionPattern[];
+  /** Suggested blind spot to watch for */
+  blind_spot: string;
+  /** Generated timestamp */
+  generated_at: string;
+}
+
+export interface ReflectionReminder {
+  entryId: string;
+  decision: string;
+  chosen_path: string;
+  dueDate: string;
+  overdueDays: number;
 }
 
 // === VALIDATION ===
